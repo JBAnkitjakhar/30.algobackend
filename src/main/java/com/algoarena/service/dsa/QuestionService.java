@@ -50,9 +50,6 @@ public class QuestionService {
     @Autowired
     private CloudinaryService cloudinaryService;
 
-    // @Autowired
-    // private UserProgressService userProgressService;
-
     @Autowired
     private CategoryService categoryService;
 
@@ -79,17 +76,21 @@ public class QuestionService {
         question.setImageUrls(questionDTO.getImageUrls());
         question.setImageFolderUrl(questionDTO.getImageFolderUrl());
 
-        if (questionDTO.getCodeSnippets() != null) {
-            List<Question.CodeSnippet> snippets = questionDTO.getCodeSnippets().stream()
-                    .map(dto -> {
-                        Question.CodeSnippet snippet = new Question.CodeSnippet();
-                        snippet.setLanguage(dto.getLanguage());
-                        snippet.setCode(dto.getCode());
-                        snippet.setDescription(dto.getDescription());
-                        return snippet;
-                    })
+        // Set code templates
+        question.setUserStarterCode(questionDTO.getUserStarterCode());
+        question.setGeneralTemplate(questionDTO.getGeneralTemplate());
+        question.setCorrectSolution(questionDTO.getCorrectSolution());
+        
+        // Set testcases
+        if (questionDTO.getTestcases() != null) {
+            List<Question.Testcase> testcases = questionDTO.getTestcases().stream()
+                    .map(dto -> new Question.Testcase(
+                        dto.getId(),
+                        dto.getInput(),
+                        dto.getExpectedOutput()
+                    ))
                     .toList();
-            question.setCodeSnippets(snippets);
+            question.setTestcases(testcases);
         }
 
         question.setCategoryId(questionDTO.getCategoryId());
@@ -118,13 +119,10 @@ public class QuestionService {
                 savedQuestion.getId(),
                 savedQuestion.getLevel());
 
-        // System.out.println("✓ Created question: " + savedQuestion.getTitle());
-
         return QuestionDTO.fromEntity(savedQuestion);
     }
 
-    @CacheEvict(value = { "globalCategories", "adminQuestionsSummary", "questionsMetadata",
-            "questionDetail" }, allEntries = true)
+    @CacheEvict(value = { "globalCategories", "adminQuestionsSummary", "questionsMetadata", "questionDetail" }, allEntries = true)
     @Transactional
     public QuestionDTO updateQuestion(String id, QuestionDTO questionDTO) {
         Question question = questionRepository.findById(id)
@@ -154,17 +152,21 @@ public class QuestionService {
         question.setImageUrls(questionDTO.getImageUrls());
         question.setImageFolderUrl(questionDTO.getImageFolderUrl());
 
-        if (questionDTO.getCodeSnippets() != null) {
-            List<Question.CodeSnippet> snippets = questionDTO.getCodeSnippets().stream()
-                    .map(dto -> {
-                        Question.CodeSnippet snippet = new Question.CodeSnippet();
-                        snippet.setLanguage(dto.getLanguage());
-                        snippet.setCode(dto.getCode());
-                        snippet.setDescription(dto.getDescription());
-                        return snippet;
-                    })
+        // Update code templates
+        question.setUserStarterCode(questionDTO.getUserStarterCode());
+        question.setGeneralTemplate(questionDTO.getGeneralTemplate());
+        question.setCorrectSolution(questionDTO.getCorrectSolution());
+        
+        // Update testcases
+        if (questionDTO.getTestcases() != null) {
+            List<Question.Testcase> testcases = questionDTO.getTestcases().stream()
+                    .map(dto -> new Question.Testcase(
+                        dto.getId(),
+                        dto.getInput(),
+                        dto.getExpectedOutput()
+                    ))
                     .toList();
-            question.setCodeSnippets(snippets);
+            question.setTestcases(testcases);
         }
 
         boolean categoryChanged = !oldCategoryId.equals(questionDTO.getCategoryId());
@@ -190,24 +192,8 @@ public class QuestionService {
 
         Question updatedQuestion = questionRepository.save(question);
 
-        // System.out.println("✓ Updated question: " + updatedQuestion.getTitle());
-
         return QuestionDTO.fromEntity(updatedQuestion);
     }
-
-    // adminQuestionsSummary,\
-    // adminSolutionsSummary,\
-    // globalCategories,\
-    // userMeStats,\
-    // questionsMetadata,\
-    // questionDetail,\
-    // questionSolutions,\
-    // solutionDetail,\
-    // courseTopic,\
-    // courseDocsList,\
-    // courseDoc,\
-    // topicNamesPublic,\
-    // topicNamesAdmin
 
     @CacheEvict(value = { "globalCategories", "adminQuestionsSummary", "questionsMetadata",
             "questionDetail", "userMeStats", "adminSolutionsSummary", "solutionDetail",
@@ -217,51 +203,37 @@ public class QuestionService {
         Question question = questionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Question not found with id: " + id));
 
-        // ✅ STEP 1: Delete all solutions (with their images and visualizers)
+        // STEP 1: Delete all solutions
         List<Solution> solutions = solutionRepository.findByQuestionId(id);
-        // System.out.println("Deleting " + solutions.size() + " solutions for question...");
-
         for (Solution solution : solutions) {
-            // This will now properly delete solution images and visualizers
             solutionService.deleteSolution(solution.getId());
         }
 
-        // ✅ STEP 2: Delete question's own images
+        // STEP 2: Delete question's own images
         if (question.getImageUrls() != null && !question.getImageUrls().isEmpty()) {
-            // System.out.println("Deleting " + question.getImageUrls().size() + " images from question...");
-
             for (String imageUrl : question.getImageUrls()) {
                 try {
                     String publicId = extractPublicIdFromUrl(imageUrl);
                     cloudinaryService.deleteImage(publicId);
-                    // System.out.println("  ✓ Deleted image: " + publicId);
                 } catch (Exception e) {
-                    System.err.println("  ✗ Failed to delete image: " + e.getMessage());
+                    System.err.println("Failed to delete image: " + e.getMessage());
                 }
             }
         }
 
-        // ✅ STEP 3: Remove from category
+        // STEP 3: Remove from category
         categoryService.removeQuestionFromCategory(
                 question.getCategoryId(),
                 question.getId(),
                 question.getLevel());
 
-        // ✅ STEP 4: Delete approaches
+        // STEP 4: Delete approaches
         approachService.deleteAllApproachesForQuestion(id);
 
-        // ✅ STEP 5: Remove from user progress
-        // int removedFromUsers = userProgressService.removeQuestionFromAllUsers(id);
-        // System.out.println("✓ Removed from " + removedFromUsers + " users' progress");
-
-        // ✅ STEP 6: Delete question from database
+        // STEP 5: Delete question from database
         questionRepository.deleteById(id);
-        // System.out.println("✓ Deleted question: " + question.getTitle());
     }
 
-    /**
-     * Helper method to extract Cloudinary public ID from URL
-     */
     private String extractPublicIdFromUrl(String imageUrl) {
         if (imageUrl == null || !imageUrl.contains("cloudinary.com")) {
             throw new IllegalArgumentException("Invalid Cloudinary URL");
@@ -300,11 +272,8 @@ public class QuestionService {
 
     @Cacheable(value = "adminQuestionsSummary", key = "'page_' + #pageable.pageNumber + '_size_' + #pageable.pageSize")
     public Page<AdminQuestionSummaryDTO> getAdminQuestionsSummary(Pageable pageable) {
-        // System.out.println("CACHE MISS: Fetching admin questions summary from database");
-
         Page<Question> questions = questionRepository.findAllByOrderByCreatedAtDesc(pageable);
 
-        // OPTIMIZATION: Fetch all solution counts in ONE query
         List<String> questionIds = questions.getContent().stream()
                 .map(Question::getId)
                 .toList();
@@ -319,65 +288,45 @@ public class QuestionService {
             dto.setCategoryId(question.getCategoryId());
             dto.setDisplayOrder(question.getDisplayOrder());
             dto.setImageCount(question.getImageUrls() != null ? question.getImageUrls().size() : 0);
-            dto.setHasCodeSnippets(question.getCodeSnippets() != null && !question.getCodeSnippets().isEmpty());
+            
+            boolean hasCodeTemplates = (question.getUserStarterCode() != null && !question.getUserStarterCode().isEmpty()) ||
+                                      (question.getGeneralTemplate() != null && !question.getGeneralTemplate().isEmpty());
+            dto.setHasCodeSnippets(hasCodeTemplates);
+            
             dto.setCreatedByName(question.getCreatedByName());
             dto.setUpdatedAt(question.getUpdatedAt());
-            dto.setSolutionCount(solutionCounts.getOrDefault(question.getId(), 0)); // FIXED
+            dto.setSolutionCount(solutionCounts.getOrDefault(question.getId(), 0));
 
             return dto;
         });
     }
 
-    /**
-     * Fetch solution counts for multiple questions in a single aggregation query
-     * 
-     * MongoDB Aggregation Pipeline:
-     * 1. Match: Filter solutions where questionId is in the provided list
-     * 2. Group: Group by questionId and count documents in each group
-     * 
-     * Example:
-     * Input: ["id1", "id2", "id3"]
-     * Output: {"id1": 5, "id2": 3, "id3": 0}
-     * 
-     * This reduces 20 separate count queries to 1 aggregation query
-     */
     private Map<String, Integer> getSolutionCountsForQuestions(List<String> questionIds) {
         if (questionIds.isEmpty()) {
             return new HashMap<>();
         }
 
-        // MongoDB Aggregation Pipeline
         Aggregation aggregation = Aggregation.newAggregation(
-                // Stage 1: Match solutions where questionId is in our list
                 Aggregation.match(Criteria.where("questionId").in(questionIds)),
-                // Stage 2: Group by questionId and count
                 Aggregation.group("questionId").count().as("count"));
 
-        // Execute aggregation
         AggregationResults<org.bson.Document> results = mongoTemplate.aggregate(
                 aggregation,
-                "solutions", // collection name
+                "solutions",
                 org.bson.Document.class);
 
-        // Convert results to Map
         Map<String, Integer> counts = new HashMap<>();
         for (org.bson.Document doc : results.getMappedResults()) {
-            String questionId = doc.getString("_id"); // _id is the grouped field (questionId)
-            Integer count = doc.getInteger("count"); // FIXED: use getInteger instead of getLong
+            String questionId = doc.getString("_id");
+            Integer count = doc.getInteger("count");
             counts.put(questionId, count);
         }
 
         return counts;
     }
 
-    /**
-     * Get question by ID for authenticated users
-     * Globally cached
-     */
     @Cacheable(value = "questionDetail", key = "#questionId")
     public QuestionDTO getQuestionById(String questionId) {
-        // System.out.println("CACHE MISS: Fetching question detail for: " + questionId);
-
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found with id: " + questionId));
 
@@ -386,8 +335,6 @@ public class QuestionService {
 
     @Cacheable(value = "questionsMetadata")
     public QuestionsMetadataDTO getQuestionsMetadata() {
-        // System.out.println("CACHE MISS: Fetching questions metadata");
-
         List<Question> allQuestions = questionRepository.findAll();
         Map<String, QuestionsMetadataDTO.QuestionMetadata> metadataMap = new HashMap<>();
 

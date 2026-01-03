@@ -32,18 +32,18 @@ public class PistonService {
     public ExecutionResponse executeCode(ExecutionRequest request) {
         try {
             String pistonUrl = appConfig.getPiston().getApiUrl() + "/execute";
-            
+
             // Prepare request body for Piston API
             Map<String, Object> pistonRequest = new HashMap<>();
             pistonRequest.put("language", request.getLanguage());
             pistonRequest.put("version", request.getVersion());
-            
+
             // Prepare files array
             List<Map<String, String>> files = new ArrayList<>();
             Map<String, String> mainFile = new HashMap<>();
             mainFile.put("content", request.getCode());
             files.add(mainFile);
-            
+
             // Add additional files if provided
             if (request.getFiles() != null) {
                 for (ExecutionRequest.FileContent file : request.getFiles()) {
@@ -53,14 +53,14 @@ public class PistonService {
                     files.add(additionalFile);
                 }
             }
-            
+
             pistonRequest.put("files", files);
-            
+
             // Add stdin if provided
             if (request.getStdin() != null && !request.getStdin().isEmpty()) {
                 pistonRequest.put("stdin", request.getStdin());
             }
-            
+
             // Add args if provided
             if (request.getArgs() != null && !request.getArgs().isEmpty()) {
                 pistonRequest.put("args", request.getArgs());
@@ -74,7 +74,7 @@ public class PistonService {
 
             // Make the API call
             ResponseEntity<String> response = restTemplate.postForEntity(pistonUrl, entity, String.class);
-            
+
             if (response.getStatusCode() == HttpStatus.OK) {
                 return parseExecutionResponse(response.getBody());
             } else {
@@ -92,11 +92,12 @@ public class PistonService {
     public List<Map<String, Object>> getRuntimes() {
         try {
             String runtimesUrl = appConfig.getPiston().getApiUrl() + "/runtimes";
-            
+
             ResponseEntity<String> response = restTemplate.getForEntity(runtimesUrl, String.class);
-            
+
             if (response.getStatusCode() == HttpStatus.OK) {
-                TypeReference<List<Map<String, Object>>> typeRef = new TypeReference<List<Map<String, Object>>>() {};
+                TypeReference<List<Map<String, Object>>> typeRef = new TypeReference<List<Map<String, Object>>>() {
+                };
                 return objectMapper.readValue(response.getBody(), typeRef);
             } else {
                 throw new RuntimeException("Failed to fetch runtimes from Piston API");
@@ -112,21 +113,20 @@ public class PistonService {
         try {
             List<Map<String, Object>> runtimes = getRuntimes();
             Set<String> languages = new HashSet<>();
-            
+
             for (Map<String, Object> runtime : runtimes) {
                 String language = (String) runtime.get("language");
                 if (language != null) {
                     languages.add(language);
                 }
             }
-            
+
             return new ArrayList<>(languages);
         } catch (Exception e) {
             // Fallback to common languages if API fails
             return Arrays.asList(
-                "javascript", "python", "java", "cpp", "c", "csharp", 
-                "go", "rust", "kotlin", "typescript", "php", "ruby"
-            );
+                    "javascript", "python", "java", "cpp", "c", "csharp",
+                    "go", "rust", "kotlin", "typescript", "php", "ruby");
         }
     }
 
@@ -145,14 +145,15 @@ public class PistonService {
     @SuppressWarnings("unchecked")
     private ExecutionResponse parseExecutionResponse(String responseBody) {
         try {
-            Map<String, Object> responseMap = objectMapper.readValue(responseBody, 
-                new TypeReference<Map<String, Object>>() {});
-            
+            Map<String, Object> responseMap = objectMapper.readValue(responseBody,
+                    new TypeReference<Map<String, Object>>() {
+                    });
+
             ExecutionResponse executionResponse = new ExecutionResponse();
             executionResponse.setLanguage((String) responseMap.get("language"));
             executionResponse.setVersion((String) responseMap.get("version"));
-            
-            // FIXED: Parse run results with proper casting
+
+            // Parse run results with metrics
             Object runObj = responseMap.get("run");
             if (runObj instanceof Map) {
                 Map<String, Object> runMap = (Map<String, Object>) runObj;
@@ -162,10 +163,16 @@ public class PistonService {
                 runResult.setCode(getIntegerValue(runMap.get("code")));
                 runResult.setSignal((String) runMap.get("signal"));
                 runResult.setOutput((String) runMap.get("output"));
+
+                // NEW: Extract performance metrics
+                runResult.setCpuTime(getLongValue(runMap.get("cpu_time")));
+                runResult.setWallTime(getLongValue(runMap.get("wall_time")));
+                runResult.setMemory(getLongValue(runMap.get("memory")));
+
                 executionResponse.setRun(runResult);
             }
-            
-            // FIXED: Parse compile results (for compiled languages) with proper casting
+
+            // Parse compile results
             Object compileObj = responseMap.get("compile");
             if (compileObj instanceof Map) {
                 Map<String, Object> compileMap = (Map<String, Object>) compileObj;
@@ -176,12 +183,27 @@ public class PistonService {
                 compileResult.setOutput((String) compileMap.get("output"));
                 executionResponse.setCompile(compileResult);
             }
-            
+
             return executionResponse;
-            
+
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse execution response: " + e.getMessage());
         }
+    }
+
+    // ADD this new helper method:
+    private Long getLongValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Long) {
+            return (Long) value;
+        } else if (value instanceof Integer) {
+            return ((Integer) value).longValue();
+        } else if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        return null;
     }
 
     // Helper method to safely convert Object to Integer
@@ -199,24 +221,23 @@ public class PistonService {
     public String getLanguageVersion(String language) {
         try {
             List<Map<String, Object>> runtimes = getRuntimes();
-            
+
             for (Map<String, Object> runtime : runtimes) {
                 if (language.equals(runtime.get("language"))) {
                     return (String) runtime.get("version");
                 }
             }
-            
+
             // Fallback versions for common languages
             Map<String, String> fallbackVersions = Map.of(
-                "javascript", "18.15.0",
-                "python", "3.10.0",
-                "java", "15.0.2",
-                "cpp", "10.2.0",
-                "c", "10.2.0"
-            );
-            
+                    "javascript", "18.15.0",
+                    "python", "3.10.0",
+                    "java", "15.0.2",
+                    "cpp", "10.2.0",
+                    "c", "10.2.0");
+
             return fallbackVersions.getOrDefault(language, "latest");
-            
+
         } catch (Exception e) {
             return "latest"; // Fallback
         }
@@ -226,12 +247,12 @@ public class PistonService {
     public Map<String, Object> getLanguageInfo(String language) {
         try {
             List<Map<String, Object>> runtimes = getRuntimes();
-            
+
             return runtimes.stream()
                     .filter(runtime -> language.equals(runtime.get("language")))
                     .findFirst()
                     .orElse(new HashMap<>());
-                    
+
         } catch (Exception e) {
             return new HashMap<>();
         }
@@ -240,23 +261,23 @@ public class PistonService {
     // Test connection to Piston API
     public Map<String, Object> testConnection() {
         Map<String, Object> result = new HashMap<>();
-        
+
         try {
             long startTime = System.currentTimeMillis();
             List<Map<String, Object>> runtimes = getRuntimes();
             long endTime = System.currentTimeMillis();
-            
+
             result.put("status", "success");
             result.put("responseTime", endTime - startTime);
             result.put("runtimesCount", runtimes.size());
             result.put("apiUrl", appConfig.getPiston().getApiUrl());
-            
+
         } catch (Exception e) {
             result.put("status", "failed");
             result.put("error", e.getMessage());
             result.put("apiUrl", appConfig.getPiston().getApiUrl());
         }
-        
+
         return result;
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Document(collection = "questions")
 public class Question {
@@ -15,26 +16,30 @@ public class Question {
     @Id
     private String id;
 
-    @Version // For optimistic locking and thread safety
+    @Version
     private Long version;
 
     private String title;
     private String statement;
     
     private List<String> imageUrls;
-    private String imageFolderUrl; // Backward compatibility
-    
-    private List<CodeSnippet> codeSnippets;
+    private String imageFolderUrl;
 
-    // ISOLATED: Only store categoryId, not the full category object
     @Indexed
     private String categoryId;
 
     private QuestionLevel level;
-    
     private Integer displayOrder;
 
-    // ISOLATED: Store creator info directly, not DBRef
+    // Code templates (multi-language)
+    private Map<String, String> userStarterCode;
+    private Map<String, String> generalTemplate;
+    private Map<String, String> correctSolution;
+    
+    // Testcases
+    private List<Testcase> testcases;
+
+    // Metadata
     private String createdById;
     private String createdByName;
 
@@ -42,27 +47,33 @@ public class Question {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static class CodeSnippet {
-        private String language;
-        private String code;
-        private String description;
+    // Inner class for Testcase
+    public static class Testcase {
+        private Integer id;
+         
+        private Map<String, Object> input;
+         
+        private Object expectedOutput;
 
-        public CodeSnippet() {}
+        public Testcase() {}
 
-        public CodeSnippet(String language, String code, String description) {
-            this.language = language;
-            this.code = code;
-            this.description = description;
+        public Testcase(Integer id, Map<String, Object> input, Object expectedOutput) {
+            this.id = id;
+            this.input = input;
+            this.expectedOutput = expectedOutput;
         }
 
-        public String getLanguage() { return language; }
-        public void setLanguage(String language) { this.language = language; }
-        public String getCode() { return code; }
-        public void setCode(String code) { this.code = code; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
+        public Integer getId() { return id; }
+        public void setId(Integer id) { this.id = id; }
+
+        public Map<String, Object> getInput() { return input; }
+        public void setInput(Map<String, Object> input) { this.input = input; }
+
+        public Object getExpectedOutput() { return expectedOutput; }
+        public void setExpectedOutput(Object expectedOutput) { this.expectedOutput = expectedOutput; }
     }
 
+    // Constructors
     public Question() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
@@ -99,9 +110,27 @@ public class Question {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public List<CodeSnippet> getCodeSnippets() { return codeSnippets; }
-    public void setCodeSnippets(List<CodeSnippet> codeSnippets) {
-        this.codeSnippets = codeSnippets;
+    public Map<String, String> getUserStarterCode() { return userStarterCode; }
+    public void setUserStarterCode(Map<String, String> userStarterCode) {
+        this.userStarterCode = userStarterCode;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public Map<String, String> getGeneralTemplate() { return generalTemplate; }
+    public void setGeneralTemplate(Map<String, String> generalTemplate) {
+        this.generalTemplate = generalTemplate;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public Map<String, String> getCorrectSolution() { return correctSolution; }
+    public void setCorrectSolution(Map<String, String> correctSolution) {
+        this.correctSolution = correctSolution;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public List<Testcase> getTestcases() { return testcases; }
+    public void setTestcases(List<Testcase> testcases) {
+        this.testcases = testcases;
         this.updatedAt = LocalDateTime.now();
     }
 

@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public class QuestionDTO {
 
@@ -25,43 +26,54 @@ public class QuestionDTO {
 
     private List<String> imageUrls;
     private String imageFolderUrl;
-    private List<CodeSnippetDTO> codeSnippets;
 
     @NotNull(message = "Category is required")
-    private String categoryId; // ONLY ID - frontend maps to name
+    private String categoryId;
 
     @NotNull(message = "Level is required")
     private QuestionLevel level;
     
     private Integer displayOrder;
 
+    // Code templates
+    private Map<String, String> userStarterCode;
+    private Map<String, String> generalTemplate;
+    private Map<String, String> correctSolution;
+    
+    // Testcases
+    private List<TestcaseDTO> testcases;
+
+    // Metadata
     private String createdByName;
     private String createdById;
-    
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static class CodeSnippetDTO {
-        private String language;
-        private String code;
-        private String description;
+    // Inner DTO for Testcase
+    public static class TestcaseDTO {
+        private Integer id;
+        private Map<String, Object> input;
+        private Object expectedOutput;
 
-        public CodeSnippetDTO() {}
+        public TestcaseDTO() {}
 
-        public CodeSnippetDTO(Question.CodeSnippet codeSnippet) {
-            this.language = codeSnippet.getLanguage();
-            this.code = codeSnippet.getCode();
-            this.description = codeSnippet.getDescription();
+        public TestcaseDTO(Question.Testcase testcase) {
+            this.id = testcase.getId();
+            this.input = testcase.getInput();
+            this.expectedOutput = testcase.getExpectedOutput();
         }
 
-        public String getLanguage() { return language; }
-        public void setLanguage(String language) { this.language = language; }
-        public String getCode() { return code; }
-        public void setCode(String code) { this.code = code; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
+        public Integer getId() { return id; }
+        public void setId(Integer id) { this.id = id; }
+
+        public Map<String, Object> getInput() { return input; }
+        public void setInput(Map<String, Object> input) { this.input = input; }
+
+        public Object getExpectedOutput() { return expectedOutput; }
+        public void setExpectedOutput(Object expectedOutput) { this.expectedOutput = expectedOutput; }
     }
 
+    // Constructors
     public QuestionDTO() {}
 
     public QuestionDTO(Question question) {
@@ -72,9 +84,13 @@ public class QuestionDTO {
         this.imageUrls = question.getImageUrls();
         this.imageFolderUrl = question.getImageFolderUrl();
         
-        if (question.getCodeSnippets() != null) {
-            this.codeSnippets = question.getCodeSnippets().stream()
-                    .map(CodeSnippetDTO::new)
+        this.userStarterCode = question.getUserStarterCode();
+        this.generalTemplate = question.getGeneralTemplate();
+        this.correctSolution = question.getCorrectSolution();
+        
+        if (question.getTestcases() != null) {
+            this.testcases = question.getTestcases().stream()
+                    .map(TestcaseDTO::new)
                     .toList();
         }
         
@@ -110,8 +126,17 @@ public class QuestionDTO {
     public String getImageFolderUrl() { return imageFolderUrl; }
     public void setImageFolderUrl(String imageFolderUrl) { this.imageFolderUrl = imageFolderUrl; }
 
-    public List<CodeSnippetDTO> getCodeSnippets() { return codeSnippets; }
-    public void setCodeSnippets(List<CodeSnippetDTO> codeSnippets) { this.codeSnippets = codeSnippets; }
+    public Map<String, String> getUserStarterCode() { return userStarterCode; }
+    public void setUserStarterCode(Map<String, String> userStarterCode) { this.userStarterCode = userStarterCode; }
+
+    public Map<String, String> getGeneralTemplate() { return generalTemplate; }
+    public void setGeneralTemplate(Map<String, String> generalTemplate) { this.generalTemplate = generalTemplate; }
+
+    public Map<String, String> getCorrectSolution() { return correctSolution; }
+    public void setCorrectSolution(Map<String, String> correctSolution) { this.correctSolution = correctSolution; }
+
+    public List<TestcaseDTO> getTestcases() { return testcases; }
+    public void setTestcases(List<TestcaseDTO> testcases) { this.testcases = testcases; }
 
     public String getCategoryId() { return categoryId; }
     public void setCategoryId(String categoryId) { this.categoryId = categoryId; }

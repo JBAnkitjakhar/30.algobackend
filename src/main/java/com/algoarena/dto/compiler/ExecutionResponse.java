@@ -6,20 +6,20 @@ public class ExecutionResponse {
     private String language;
     private String version;
     private RunResult run;
-    private CompileResult compile; // For compiled languages
+    private CompileResult compile;
 
-    // Inner class for run results
     public static class RunResult {
         private String stdout;
         private String stderr;
-        private int code; // Exit code
-        private String signal; // Signal if terminated
-        private String output; // Combined stdout + stderr
+        private int code;
+        private String signal;
+        private String output;
+        private Long cpuTime;    // NEW
+        private Long wallTime;   // NEW
+        private Long memory;     // NEW
 
-        // Constructors
         public RunResult() {}
 
-        // Getters and Setters
         public String getStdout() { return stdout; }
         public void setStdout(String stdout) { this.stdout = stdout; }
         public String getStderr() { return stderr; }
@@ -30,19 +30,22 @@ public class ExecutionResponse {
         public void setSignal(String signal) { this.signal = signal; }
         public String getOutput() { return output; }
         public void setOutput(String output) { this.output = output; }
+        public Long getCpuTime() { return cpuTime; }
+        public void setCpuTime(Long cpuTime) { this.cpuTime = cpuTime; }
+        public Long getWallTime() { return wallTime; }
+        public void setWallTime(Long wallTime) { this.wallTime = wallTime; }
+        public Long getMemory() { return memory; }
+        public void setMemory(Long memory) { this.memory = memory; }
     }
 
-    // Inner class for compile results
     public static class CompileResult {
         private String stdout;
         private String stderr;
         private int code;
         private String output;
 
-        // Constructors
         public CompileResult() {}
 
-        // Getters and Setters
         public String getStdout() { return stdout; }
         public void setStdout(String stdout) { this.stdout = stdout; }
         public String getStderr() { return stderr; }
@@ -53,43 +56,17 @@ public class ExecutionResponse {
         public void setOutput(String output) { this.output = output; }
     }
 
-    // Constructors
     public ExecutionResponse() {}
 
-    // Getters and Setters
-    public String getLanguage() {
-        return language;
-    }
+    public String getLanguage() { return language; }
+    public void setLanguage(String language) { this.language = language; }
+    public String getVersion() { return version; }
+    public void setVersion(String version) { this.version = version; }
+    public RunResult getRun() { return run; }
+    public void setRun(RunResult run) { this.run = run; }
+    public CompileResult getCompile() { return compile; }
+    public void setCompile(CompileResult compile) { this.compile = compile; }
 
-    public void setLanguage(String language) {
-        this.language = language;
-    }
-
-    public String getVersion() {
-        return version;
-    }
-
-    public void setVersion(String version) {
-        this.version = version;
-    }
-
-    public RunResult getRun() {
-        return run;
-    }
-
-    public void setRun(RunResult run) {
-        this.run = run;
-    }
-
-    public CompileResult getCompile() {
-        return compile;
-    }
-
-    public void setCompile(CompileResult compile) {
-        this.compile = compile;
-    }
-
-    // Helper methods
     public boolean hasCompileError() {
         return compile != null && compile.getCode() != 0;
     }
