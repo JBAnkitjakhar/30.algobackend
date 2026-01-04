@@ -32,14 +32,14 @@ public class QuestionDTO {
 
     @NotNull(message = "Level is required")
     private QuestionLevel level;
-    
+
     private Integer displayOrder;
 
     // Code templates
     private Map<String, String> userStarterCode;
     private Map<String, String> generalTemplate;
     private Map<String, String> correctSolution;
-    
+
     // Testcases
     private List<TestcaseDTO> testcases;
 
@@ -54,27 +54,54 @@ public class QuestionDTO {
         private Integer id;
         private Map<String, Object> input;
         private Object expectedOutput;
+        private Long expectedTimeLimit; // ⭐ NEW: Time limit in ms
 
-        public TestcaseDTO() {}
+        public TestcaseDTO() {
+        }
 
         public TestcaseDTO(Question.Testcase testcase) {
             this.id = testcase.getId();
             this.input = testcase.getInput();
             this.expectedOutput = testcase.getExpectedOutput();
+            this.expectedTimeLimit = testcase.getExpectedTimeLimit();
         }
 
-        public Integer getId() { return id; }
-        public void setId(Integer id) { this.id = id; }
+        public Integer getId() {
+            return id;
+        }
 
-        public Map<String, Object> getInput() { return input; }
-        public void setInput(Map<String, Object> input) { this.input = input; }
+        public void setId(Integer id) {
+            this.id = id;
+        }
 
-        public Object getExpectedOutput() { return expectedOutput; }
-        public void setExpectedOutput(Object expectedOutput) { this.expectedOutput = expectedOutput; }
+        public Map<String, Object> getInput() {
+            return input;
+        }
+
+        public void setInput(Map<String, Object> input) {
+            this.input = input;
+        }
+
+        public Object getExpectedOutput() {
+            return expectedOutput;
+        }
+
+        public void setExpectedOutput(Object expectedOutput) {
+            this.expectedOutput = expectedOutput;
+        }
+
+        public Long getExpectedTimeLimit() {
+            return expectedTimeLimit;
+        }
+
+        public void setExpectedTimeLimit(Long expectedTimeLimit) {
+            this.expectedTimeLimit = expectedTimeLimit;
+        }
     }
 
     // Constructors
-    public QuestionDTO() {}
+    public QuestionDTO() {
+    }
 
     public QuestionDTO(Question question) {
         this.id = question.getId();
@@ -83,17 +110,17 @@ public class QuestionDTO {
         this.statement = question.getStatement();
         this.imageUrls = question.getImageUrls();
         this.imageFolderUrl = question.getImageFolderUrl();
-        
+
         this.userStarterCode = question.getUserStarterCode();
         this.generalTemplate = question.getGeneralTemplate();
         this.correctSolution = question.getCorrectSolution();
-        
+
         if (question.getTestcases() != null) {
             this.testcases = question.getTestcases().stream()
                     .map(TestcaseDTO::new)
                     .toList();
         }
-        
+
         this.categoryId = question.getCategoryId();
         this.level = question.getLevel();
         this.displayOrder = question.getDisplayOrder();
@@ -108,54 +135,139 @@ public class QuestionDTO {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public Long getVersion() { return version; }
-    public void setVersion(Long version) { this.version = version; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public Long getVersion() {
+        return version;
+    }
 
-    public String getStatement() { return statement; }
-    public void setStatement(String statement) { this.statement = statement; }
+    public void setVersion(Long version) {
+        this.version = version;
+    }
 
-    public List<String> getImageUrls() { return imageUrls; }
-    public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
+    public String getTitle() {
+        return title;
+    }
 
-    public String getImageFolderUrl() { return imageFolderUrl; }
-    public void setImageFolderUrl(String imageFolderUrl) { this.imageFolderUrl = imageFolderUrl; }
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
-    public Map<String, String> getUserStarterCode() { return userStarterCode; }
-    public void setUserStarterCode(Map<String, String> userStarterCode) { this.userStarterCode = userStarterCode; }
+    public String getStatement() {
+        return statement;
+    }
 
-    public Map<String, String> getGeneralTemplate() { return generalTemplate; }
-    public void setGeneralTemplate(Map<String, String> generalTemplate) { this.generalTemplate = generalTemplate; }
+    public void setStatement(String statement) {
+        this.statement = statement;
+    }
 
-    public Map<String, String> getCorrectSolution() { return correctSolution; }
-    public void setCorrectSolution(Map<String, String> correctSolution) { this.correctSolution = correctSolution; }
+    public List<String> getImageUrls() {
+        return imageUrls;
+    }
 
-    public List<TestcaseDTO> getTestcases() { return testcases; }
-    public void setTestcases(List<TestcaseDTO> testcases) { this.testcases = testcases; }
+    public void setImageUrls(List<String> imageUrls) {
+        this.imageUrls = imageUrls;
+    }
 
-    public String getCategoryId() { return categoryId; }
-    public void setCategoryId(String categoryId) { this.categoryId = categoryId; }
+    public String getImageFolderUrl() {
+        return imageFolderUrl;
+    }
 
-    public QuestionLevel getLevel() { return level; }
-    public void setLevel(QuestionLevel level) { this.level = level; }
-    
-    public Integer getDisplayOrder() { return displayOrder; }
-    public void setDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
+    public void setImageFolderUrl(String imageFolderUrl) {
+        this.imageFolderUrl = imageFolderUrl;
+    }
 
-    public String getCreatedByName() { return createdByName; }
-    public void setCreatedByName(String createdByName) { this.createdByName = createdByName; }
+    public Map<String, String> getUserStarterCode() {
+        return userStarterCode;
+    }
 
-    public String getCreatedById() { return createdById; }
-    public void setCreatedById(String createdById) { this.createdById = createdById; }
+    public void setUserStarterCode(Map<String, String> userStarterCode) {
+        this.userStarterCode = userStarterCode;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Map<String, String> getGeneralTemplate() {
+        return generalTemplate;
+    }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public void setGeneralTemplate(Map<String, String> generalTemplate) {
+        this.generalTemplate = generalTemplate;
+    }
+
+    public Map<String, String> getCorrectSolution() {
+        return correctSolution;
+    }
+
+    public void setCorrectSolution(Map<String, String> correctSolution) {
+        this.correctSolution = correctSolution;
+    }
+
+    public List<TestcaseDTO> getTestcases() {
+        return testcases;
+    }
+
+    public void setTestcases(List<TestcaseDTO> testcases) {
+        this.testcases = testcases;
+    }
+
+    public String getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(String categoryId) {
+        this.categoryId = categoryId;
+    }
+
+    public QuestionLevel getLevel() {
+        return level;
+    }
+
+    public void setLevel(QuestionLevel level) {
+        this.level = level;
+    }
+
+    public Integer getDisplayOrder() {
+        return displayOrder;
+    }
+
+    public void setDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
+    }
+
+    public String getCreatedByName() {
+        return createdByName;
+    }
+
+    public void setCreatedByName(String createdByName) {
+        this.createdByName = createdByName;
+    }
+
+    public String getCreatedById() {
+        return createdById;
+    }
+
+    public void setCreatedById(String createdById) {
+        this.createdById = createdById;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }

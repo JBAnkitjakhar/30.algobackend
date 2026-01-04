@@ -80,15 +80,15 @@ public class QuestionService {
         question.setUserStarterCode(questionDTO.getUserStarterCode());
         question.setGeneralTemplate(questionDTO.getGeneralTemplate());
         question.setCorrectSolution(questionDTO.getCorrectSolution());
-        
+
         // Set testcases
         if (questionDTO.getTestcases() != null) {
             List<Question.Testcase> testcases = questionDTO.getTestcases().stream()
                     .map(dto -> new Question.Testcase(
-                        dto.getId(),
-                        dto.getInput(),
-                        dto.getExpectedOutput()
-                    ))
+                            dto.getId(),
+                            dto.getInput(),
+                            dto.getExpectedOutput(),
+                            dto.getExpectedTimeLimit()))
                     .toList();
             question.setTestcases(testcases);
         }
@@ -122,7 +122,8 @@ public class QuestionService {
         return QuestionDTO.fromEntity(savedQuestion);
     }
 
-    @CacheEvict(value = { "globalCategories", "adminQuestionsSummary", "questionsMetadata", "questionDetail" }, allEntries = true)
+    @CacheEvict(value = { "globalCategories", "adminQuestionsSummary", "questionsMetadata",
+            "questionDetail" }, allEntries = true)
     @Transactional
     public QuestionDTO updateQuestion(String id, QuestionDTO questionDTO) {
         Question question = questionRepository.findById(id)
@@ -156,15 +157,15 @@ public class QuestionService {
         question.setUserStarterCode(questionDTO.getUserStarterCode());
         question.setGeneralTemplate(questionDTO.getGeneralTemplate());
         question.setCorrectSolution(questionDTO.getCorrectSolution());
-        
+
         // Update testcases
         if (questionDTO.getTestcases() != null) {
             List<Question.Testcase> testcases = questionDTO.getTestcases().stream()
                     .map(dto -> new Question.Testcase(
-                        dto.getId(),
-                        dto.getInput(),
-                        dto.getExpectedOutput()
-                    ))
+                            dto.getId(),
+                            dto.getInput(),
+                            dto.getExpectedOutput(),
+                            dto.getExpectedTimeLimit()))
                     .toList();
             question.setTestcases(testcases);
         }
@@ -288,11 +289,12 @@ public class QuestionService {
             dto.setCategoryId(question.getCategoryId());
             dto.setDisplayOrder(question.getDisplayOrder());
             dto.setImageCount(question.getImageUrls() != null ? question.getImageUrls().size() : 0);
-            
-            boolean hasCodeTemplates = (question.getUserStarterCode() != null && !question.getUserStarterCode().isEmpty()) ||
-                                      (question.getGeneralTemplate() != null && !question.getGeneralTemplate().isEmpty());
+
+            boolean hasCodeTemplates = (question.getUserStarterCode() != null
+                    && !question.getUserStarterCode().isEmpty()) ||
+                    (question.getGeneralTemplate() != null && !question.getGeneralTemplate().isEmpty());
             dto.setHasCodeSnippets(hasCodeTemplates);
-            
+
             dto.setCreatedByName(question.getCreatedByName());
             dto.setUpdatedAt(question.getUpdatedAt());
             dto.setSolutionCount(solutionCounts.getOrDefault(question.getId(), 0));

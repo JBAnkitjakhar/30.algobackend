@@ -21,7 +21,7 @@ public class Question {
 
     private String title;
     private String statement;
-    
+
     private List<String> imageUrls;
     private String imageFolderUrl;
 
@@ -35,7 +35,7 @@ public class Question {
     private Map<String, String> userStarterCode;
     private Map<String, String> generalTemplate;
     private Map<String, String> correctSolution;
-    
+
     // Testcases
     private List<Testcase> testcases;
 
@@ -50,27 +50,51 @@ public class Question {
     // Inner class for Testcase
     public static class Testcase {
         private Integer id;
-         
         private Map<String, Object> input;
-         
         private Object expectedOutput;
+        private Long expectedTimeLimit; // ⭐ NEW: Time limit in milliseconds
 
-        public Testcase() {}
+        public Testcase() {
+        }
 
-        public Testcase(Integer id, Map<String, Object> input, Object expectedOutput) {
+        public Testcase(Integer id, Map<String, Object> input, Object expectedOutput, Long expectedTimeLimit) {
             this.id = id;
             this.input = input;
             this.expectedOutput = expectedOutput;
+            this.expectedTimeLimit = expectedTimeLimit;
         }
 
-        public Integer getId() { return id; }
-        public void setId(Integer id) { this.id = id; }
+        public Integer getId() {
+            return id;
+        }
 
-        public Map<String, Object> getInput() { return input; }
-        public void setInput(Map<String, Object> input) { this.input = input; }
+        public void setId(Integer id) {
+            this.id = id;
+        }
 
-        public Object getExpectedOutput() { return expectedOutput; }
-        public void setExpectedOutput(Object expectedOutput) { this.expectedOutput = expectedOutput; }
+        public Map<String, Object> getInput() {
+            return input;
+        }
+
+        public void setInput(Map<String, Object> input) {
+            this.input = input;
+        }
+
+        public Object getExpectedOutput() {
+            return expectedOutput;
+        }
+
+        public void setExpectedOutput(Object expectedOutput) {
+            this.expectedOutput = expectedOutput;
+        }
+
+        public Long getExpectedTimeLimit() {
+            return expectedTimeLimit;
+        }
+
+        public void setExpectedTimeLimit(Long expectedTimeLimit) {
+            this.expectedTimeLimit = expectedTimeLimit;
+        }
     }
 
     // Constructors
@@ -80,89 +104,152 @@ public class Question {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public Long getVersion() { return version; }
-    public void setVersion(Long version) { this.version = version; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public String getTitle() { return title; }
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
     public void setTitle(String title) {
         this.title = title;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public String getStatement() { return statement; }
+    public String getStatement() {
+        return statement;
+    }
+
     public void setStatement(String statement) {
         this.statement = statement;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public List<String> getImageUrls() { return imageUrls; }
+    public List<String> getImageUrls() {
+        return imageUrls;
+    }
+
     public void setImageUrls(List<String> imageUrls) {
         this.imageUrls = imageUrls;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public String getImageFolderUrl() { return imageFolderUrl; }
+    public String getImageFolderUrl() {
+        return imageFolderUrl;
+    }
+
     public void setImageFolderUrl(String imageFolderUrl) {
         this.imageFolderUrl = imageFolderUrl;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Map<String, String> getUserStarterCode() { return userStarterCode; }
+    public Map<String, String> getUserStarterCode() {
+        return userStarterCode;
+    }
+
     public void setUserStarterCode(Map<String, String> userStarterCode) {
         this.userStarterCode = userStarterCode;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Map<String, String> getGeneralTemplate() { return generalTemplate; }
+    public Map<String, String> getGeneralTemplate() {
+        return generalTemplate;
+    }
+
     public void setGeneralTemplate(Map<String, String> generalTemplate) {
         this.generalTemplate = generalTemplate;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Map<String, String> getCorrectSolution() { return correctSolution; }
+    public Map<String, String> getCorrectSolution() {
+        return correctSolution;
+    }
+
     public void setCorrectSolution(Map<String, String> correctSolution) {
         this.correctSolution = correctSolution;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public List<Testcase> getTestcases() { return testcases; }
+    public List<Testcase> getTestcases() {
+        return testcases;
+    }
+
     public void setTestcases(List<Testcase> testcases) {
         this.testcases = testcases;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public String getCategoryId() { return categoryId; }
+    public String getCategoryId() {
+        return categoryId;
+    }
+
     public void setCategoryId(String categoryId) {
         this.categoryId = categoryId;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public QuestionLevel getLevel() { return level; }
+    public QuestionLevel getLevel() {
+        return level;
+    }
+
     public void setLevel(QuestionLevel level) {
         this.level = level;
         this.updatedAt = LocalDateTime.now();
     }
-    
-    public Integer getDisplayOrder() { return displayOrder; }
+
+    public Integer getDisplayOrder() {
+        return displayOrder;
+    }
+
     public void setDisplayOrder(Integer displayOrder) {
         this.displayOrder = displayOrder;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public String getCreatedById() { return createdById; }
-    public void setCreatedById(String createdById) { this.createdById = createdById; }
+    public String getCreatedById() {
+        return createdById;
+    }
 
-    public String getCreatedByName() { return createdByName; }
-    public void setCreatedByName(String createdByName) { this.createdByName = createdByName; }
+    public void setCreatedById(String createdById) {
+        this.createdById = createdById;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public String getCreatedByName() {
+        return createdByName;
+    }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public void setCreatedByName(String createdByName) {
+        this.createdByName = createdByName;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 
     @Override
     public String toString() {

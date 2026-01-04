@@ -30,7 +30,6 @@ public class QuestionMigrationService {
      */
     public Map<String, Object> cleanupTestcaseFields() {
         try {
-            // Remove isExample and explanation from all testcases
             Update update = new Update()
                 .unset("testcases.$[].isExample")
                 .unset("testcases.$[].explanation")
@@ -104,4 +103,86 @@ public class QuestionMigrationService {
         
         return result;
     }
+
+    /**
+ * ⭐ IMPROVED: Initialize default expectedTimeLimit for all testcases
+ * Sets default time limits based on question difficulty level
+ * 
+ * POST http://localhost:8080/admin/migrations/questions/init-time-limits
+ */
+public Map<String, Object> initializeTimeLimits() {
+    List<Question> allQuestions = questionRepository.findAll();
+    
+    int updatedCount = 0;
+    int skippedCount = 0;
+    int testcasesUpdated = 0;
+    
+    for (Question question : allQuestions) {
+        boolean needsUpdate = false;
+        
+        if (question.getTestcases() != null && !question.getTestcases().isEmpty()) {
+            // Determine default time limit based on difficulty
+            long defaultTimeLimit = getDefaultTimeLimit(question.getLevel());
+            
+            for (Question.Testcase testcase : question.getTestcases()) {
+                // ✅ Update if null OR if already null (force update)
+                if (testcase.getExpectedTimeLimit() == null || testcase.getExpectedTimeLimit() == 0) {
+                    testcase.setExpectedTimeLimit(defaultTimeLimit);
+                    needsUpdate = true;
+                    testcasesUpdated++;
+                }
+            }
+        }
+        
+        if (needsUpdate) {
+            try {
+                // Force update timestamp to ensure save
+                question.setUpdatedAt(java.time.LocalDateTime.now());
+                Question saved = questionRepository.save(question);
+                
+                // Verify it was saved
+                if (saved.getTestcases() != null && 
+                    !saved.getTestcases().isEmpty() && 
+                    saved.getTestcases().get(0).getExpectedTimeLimit() != null) {
+                    updatedCount++;
+                } else {
+                    System.err.println("Failed to save time limits for question: " + question.getId());
+                }
+            } catch (Exception e) {
+                System.err.println("Error saving question " + question.getId() + ": " + e.getMessage());
+            }
+        } else {
+            skippedCount++;
+        }
+    }
+    
+    Map<String, Object> result = new HashMap<>();
+    result.put("success", true);
+    result.put("totalQuestions", allQuestions.size());
+    result.put("questionsUpdated", updatedCount);
+    result.put("questionsSkipped", skippedCount);
+    result.put("testcasesUpdated", testcasesUpdated);
+    result.put("message", "Initialized time limits for " + testcasesUpdated + " testcases across " + updatedCount + " questions");
+    result.put("defaults", Map.of(
+        "EASY", "1000ms",
+        "MEDIUM", "2000ms",
+        "HARD", "3000ms"
+    ));
+    
+    return result;
 }
+
+/**
+ * Get default time limit based on question level
+ */
+private long getDefaultTimeLimit(com.algoarena.model.QuestionLevel level) {
+    if (level == null) {
+        return 2000L; // Default 2 seconds
+    }
+    
+    return switch (level) {
+        case EASY -> 1000L;    // 1 second for easy
+        case MEDIUM -> 2000L;  // 2 seconds for medium
+        case HARD -> 3000L;    // 3 seconds for hard
+    };
+}}
