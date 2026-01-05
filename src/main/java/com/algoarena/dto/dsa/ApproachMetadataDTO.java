@@ -1,14 +1,10 @@
 // src/main/java/com/algoarena/dto/dsa/ApproachMetadataDTO.java
-
 package com.algoarena.dto.dsa;
 
 import com.algoarena.model.UserApproaches.ApproachData;
+import com.algoarena.model.UserApproaches.ApproachStatus;
 import java.time.LocalDateTime;
 
-/**
- * Lightweight DTO for listing approaches (no textContent/codeContent)
- * Used when getting all approaches for a question
- */
 public class ApproachMetadataDTO {
 
     private String id;
@@ -17,13 +13,16 @@ public class ApproachMetadataDTO {
     private String userName;
     
     private String codeLanguage;
+    private ApproachStatus status;
+    private Long runtime;
+    private Long memory;
+    private ComplexityAnalysisDTO complexityAnalysis;
     private int contentSize;
     private double contentSizeKB;
     
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    // Constructors
     public ApproachMetadataDTO() {}
 
     public ApproachMetadataDTO(ApproachData data, String userId, String userName) {
@@ -32,6 +31,17 @@ public class ApproachMetadataDTO {
         this.userId = userId;
         this.userName = userName;
         this.codeLanguage = data.getCodeLanguage();
+        this.status = data.getStatus();
+        this.runtime = data.getRuntime();
+        this.memory = data.getMemory();
+        
+        if (data.getComplexityAnalysis() != null) {
+            this.complexityAnalysis = new ComplexityAnalysisDTO(
+                data.getComplexityAnalysis().getTimeComplexity(),
+                data.getComplexityAnalysis().getSpaceComplexity()
+            );
+        }
+        
         this.contentSize = data.getContentSize();
         this.contentSizeKB = data.getContentSize() / 1024.0;
         this.createdAt = data.getCreatedAt();
@@ -79,6 +89,38 @@ public class ApproachMetadataDTO {
         this.codeLanguage = codeLanguage;
     }
 
+    public ApproachStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ApproachStatus status) {
+        this.status = status;
+    }
+
+    public Long getRuntime() {
+        return runtime;
+    }
+
+    public void setRuntime(Long runtime) {
+        this.runtime = runtime;
+    }
+
+    public Long getMemory() {
+        return memory;
+    }
+
+    public void setMemory(Long memory) {
+        this.memory = memory;
+    }
+
+    public ComplexityAnalysisDTO getComplexityAnalysis() {
+        return complexityAnalysis;
+    }
+
+    public void setComplexityAnalysis(ComplexityAnalysisDTO complexityAnalysis) {
+        this.complexityAnalysis = complexityAnalysis;
+    }
+
     public int getContentSize() {
         return contentSize;
     }
@@ -111,3 +153,4 @@ public class ApproachMetadataDTO {
         this.updatedAt = updatedAt;
     }
 }
+ 

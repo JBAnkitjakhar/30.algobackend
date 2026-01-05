@@ -2,6 +2,7 @@
 package com.algoarena.dto.dsa;
 
 import com.algoarena.model.UserApproaches.ApproachData;
+import com.algoarena.model.UserApproaches.ApproachStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -23,8 +24,16 @@ public class ApproachDetailDTO {
     private String codeContent;
 
     @NotNull(message = "Code language is required")
-    @Pattern(regexp = "^(java|python|javascript|cpp|c|csharp|go|rust|kotlin|swift|ruby|php|typescript)$", message = "Invalid programming language. Allowed: java, python, javascript, cpp, c, csharp, go, rust, kotlin, swift, ruby, php, typescript")
+    @Pattern(regexp = "^(java|python|javascript|cpp|c|csharp|go|rust|kotlin|swift|ruby|php|typescript)$", 
+             message = "Invalid programming language")
     private String codeLanguage;
+
+    private ApproachStatus status;
+    private Long runtime;
+    private Long memory;
+    private ComplexityAnalysisDTO complexityAnalysis;
+    private TestcaseFailureDTO wrongTestcase;
+    private TestcaseFailureDTO tleTestcase;
 
     private int contentSize;
     private double contentSizeKB;
@@ -32,8 +41,45 @@ public class ApproachDetailDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public ApproachDetailDTO() {
+    public static class TestcaseFailureDTO {
+        private String input;
+        private String userOutput;
+        private String expectedOutput;
+
+        public TestcaseFailureDTO() {}
+
+        public TestcaseFailureDTO(String input, String userOutput, String expectedOutput) {
+            this.input = input;
+            this.userOutput = userOutput;
+            this.expectedOutput = expectedOutput;
+        }
+
+        public String getInput() {
+            return input;
+        }
+
+        public void setInput(String input) {
+            this.input = input;
+        }
+
+        public String getUserOutput() {
+            return userOutput;
+        }
+
+        public void setUserOutput(String userOutput) {
+            this.userOutput = userOutput;
+        }
+
+        public String getExpectedOutput() {
+            return expectedOutput;
+        }
+
+        public void setExpectedOutput(String expectedOutput) {
+            this.expectedOutput = expectedOutput;
+        }
     }
+
+    public ApproachDetailDTO() {}
 
     public ApproachDetailDTO(ApproachData data, String userId, String userName) {
         this.id = data.getId();
@@ -43,12 +89,40 @@ public class ApproachDetailDTO {
         this.textContent = data.getTextContent();
         this.codeContent = data.getCodeContent();
         this.codeLanguage = data.getCodeLanguage();
+        this.status = data.getStatus();
+        this.runtime = data.getRuntime();
+        this.memory = data.getMemory();
+        
+        if (data.getComplexityAnalysis() != null) {
+            this.complexityAnalysis = new ComplexityAnalysisDTO(
+                data.getComplexityAnalysis().getTimeComplexity(),
+                data.getComplexityAnalysis().getSpaceComplexity()
+            );
+        }
+        
+        if (data.getWrongTestcase() != null) {
+            this.wrongTestcase = new TestcaseFailureDTO(
+                data.getWrongTestcase().getInput(),
+                data.getWrongTestcase().getUserOutput(),
+                data.getWrongTestcase().getExpectedOutput()
+            );
+        }
+        
+        if (data.getTleTestcase() != null) {
+            this.tleTestcase = new TestcaseFailureDTO(
+                data.getTleTestcase().getInput(),
+                data.getTleTestcase().getUserOutput(),
+                data.getTleTestcase().getExpectedOutput()
+            );
+        }
+        
         this.contentSize = data.getContentSize();
         this.contentSizeKB = data.getContentSize() / 1024.0;
         this.createdAt = data.getCreatedAt();
         this.updatedAt = data.getUpdatedAt();
     }
 
+    // Getters and Setters
     public String getId() {
         return id;
     }
@@ -103,6 +177,54 @@ public class ApproachDetailDTO {
 
     public void setCodeLanguage(String codeLanguage) {
         this.codeLanguage = codeLanguage;
+    }
+
+    public ApproachStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ApproachStatus status) {
+        this.status = status;
+    }
+
+    public Long getRuntime() {
+        return runtime;
+    }
+
+    public void setRuntime(Long runtime) {
+        this.runtime = runtime;
+    }
+
+    public Long getMemory() {
+        return memory;
+    }
+
+    public void setMemory(Long memory) {
+        this.memory = memory;
+    }
+
+    public ComplexityAnalysisDTO getComplexityAnalysis() {
+        return complexityAnalysis;
+    }
+
+    public void setComplexityAnalysis(ComplexityAnalysisDTO complexityAnalysis) {
+        this.complexityAnalysis = complexityAnalysis;
+    }
+
+    public TestcaseFailureDTO getWrongTestcase() {
+        return wrongTestcase;
+    }
+
+    public void setWrongTestcase(TestcaseFailureDTO wrongTestcase) {
+        this.wrongTestcase = wrongTestcase;
+    }
+
+    public TestcaseFailureDTO getTleTestcase() {
+        return tleTestcase;
+    }
+
+    public void setTleTestcase(TestcaseFailureDTO tleTestcase) {
+        this.tleTestcase = tleTestcase;
     }
 
     public int getContentSize() {

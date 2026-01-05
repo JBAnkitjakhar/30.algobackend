@@ -3,6 +3,8 @@ package com.algoarena.controller.dsa;
 
 import com.algoarena.dto.dsa.ApproachDetailDTO;
 import com.algoarena.dto.dsa.ApproachMetadataDTO;
+import com.algoarena.dto.dsa.ApproachUpdateDTO;
+import com.algoarena.dto.dsa.ComplexityAnalysisDTO;
 import com.algoarena.model.User;
 import com.algoarena.service.dsa.ApproachService;
 import jakarta.validation.Valid;
@@ -29,14 +31,13 @@ public class ApproachController {
             Authentication authentication) {
         User currentUser = (User) authentication.getPrincipal();
 
-        // Rate limiting is handled by RateLimitInterceptor automatically!
         List<ApproachMetadataDTO> approaches = approachService.getMyApproachesForQuestion(
                 currentUser.getId(),
                 questionId);
         return ResponseEntity.ok(approaches);
     }
 
-    @GetMapping("/question/{questionId}/{approachId}")   // sepecific approach full content
+    @GetMapping("/question/{questionId}/{approachId}") // specific approach full content
     public ResponseEntity<ApproachDetailDTO> getMyApproachDetail(
             @PathVariable String questionId,
             @PathVariable String approachId,
@@ -94,11 +95,15 @@ public class ApproachController {
         }
     }
 
+    /**
+     * ⭐ UPDATED: Only accepts ApproachUpdateDTO (textContent only)
+     * All other fields are read-only after creation
+     */
     @PutMapping("/question/{questionId}/{approachId}")
     public ResponseEntity<Map<String, Object>> updateApproach(
             @PathVariable String questionId,
             @PathVariable String approachId,
-            @Valid @RequestBody ApproachDetailDTO dto,
+            @Valid @RequestBody ApproachUpdateDTO dto,
             Authentication authentication) {
         User currentUser = (User) authentication.getPrincipal();
 
@@ -112,6 +117,40 @@ public class ApproachController {
             Map<String, Object> response = Map.of(
                     "success", true,
                     "message", "Approach updated successfully",
+                    "data", updated);
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, Object> response = Map.of(
+                    "success", false,
+                    "error", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    /**
+     * ⭐ NEW: Analyze complexity for an ACCEPTED approach (one-time only)
+     * This endpoint is called after AI analysis to store the complexity
+     * Can only be called once per approach - complexity cannot be modified after being set
+     */
+    @PutMapping("/question/{questionId}/{approachId}/analyze-complexity")
+    public ResponseEntity<Map<String, Object>> analyzeComplexity(
+            @PathVariable String questionId,
+            @PathVariable String approachId,
+            @Valid @RequestBody ComplexityAnalysisDTO complexityDTO,
+            Authentication authentication) {
+        User currentUser = (User) authentication.getPrincipal();
+
+        try {
+            ApproachDetailDTO updated = approachService.analyzeComplexity(
+                    currentUser.getId(),
+                    questionId,
+                    approachId,
+                    complexityDTO);
+
+            Map<String, Object> response = Map.of(
+                    "success", true,
+                    "message", "Complexity analysis added successfully",
                     "data", updated);
 
             return ResponseEntity.ok(response);
@@ -181,7 +220,6 @@ public class ApproachController {
             @PathVariable String questionId,
             @PathVariable String userId) {
         try {
-            // FIRST: Add this method to ApproachService
             approachService.deleteAllApproachesByUserForQuestion(userId, questionId);
 
             Map<String, Object> response = Map.of(

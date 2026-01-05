@@ -13,7 +13,6 @@ public class AdminSolutionSummaryDTO {
     private int visualizerCount;
     private String codeLanguage;
     
-    // ✅ NEW FIELDS
     private boolean hasYoutubeLink;
     private boolean hasDriveLink;
     
@@ -58,7 +57,6 @@ public class AdminSolutionSummaryDTO {
     public String getCodeLanguage() { return codeLanguage; }
     public void setCodeLanguage(String codeLanguage) { this.codeLanguage = codeLanguage; }
 
-    // ✅ NEW GETTERS/SETTERS
     public boolean isHasYoutubeLink() { return hasYoutubeLink; }
     public void setHasYoutubeLink(boolean hasYoutubeLink) { this.hasYoutubeLink = hasYoutubeLink; }
 
