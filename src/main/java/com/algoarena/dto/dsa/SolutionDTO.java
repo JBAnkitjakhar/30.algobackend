@@ -8,12 +8,12 @@ import jakarta.validation.constraints.Pattern;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public class SolutionDTO {
 
     private String id;
 
-    // ✅ SIMPLIFIED: Only questionId (no title!)
     @NotBlank(message = "Question ID is required")
     private String questionId;
 
@@ -31,37 +31,14 @@ public class SolutionDTO {
 
     private List<String> imageUrls;
     private List<String> visualizerFileIds;
-    private CodeSnippetDTO codeSnippet;
+    
+    // ✅ NEW: Map<Language, List<Code>>
+    private Map<String, List<String>> codeTemplates;
 
-    // ✅ SIMPLIFIED: Only creator name (no ID!)
     private String createdByName;
     
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
-    // Inner DTO for code snippets
-    public static class CodeSnippetDTO {
-        private String language;
-        private String code;
-        private String description;
-
-        public CodeSnippetDTO() {}
-
-        public CodeSnippetDTO(Solution.CodeSnippet codeSnippet) {
-            if (codeSnippet != null) {
-                this.language = codeSnippet.getLanguage();
-                this.code = codeSnippet.getCode();
-                this.description = codeSnippet.getDescription();
-            }
-        }
-
-        public String getLanguage() { return language; }
-        public void setLanguage(String language) { this.language = language; }
-        public String getCode() { return code; }
-        public void setCode(String code) { this.code = code; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-    }
 
     // Constructors
     public SolutionDTO() {}
@@ -74,8 +51,7 @@ public class SolutionDTO {
         this.youtubeLink = solution.getYoutubeLink();
         this.imageUrls = solution.getImageUrls();
         this.visualizerFileIds = solution.getVisualizerFileIds();
-        this.codeSnippet = solution.getCodeSnippet() != null ? 
-                          new CodeSnippetDTO(solution.getCodeSnippet()) : null;
+        this.codeTemplates = solution.getCodeTemplates();
         this.createdByName = solution.getCreatedByName();
         this.createdAt = solution.getCreatedAt();
         this.updatedAt = solution.getUpdatedAt();
@@ -139,8 +115,8 @@ public class SolutionDTO {
     public List<String> getVisualizerFileIds() { return visualizerFileIds; }
     public void setVisualizerFileIds(List<String> visualizerFileIds) { this.visualizerFileIds = visualizerFileIds; }
 
-    public CodeSnippetDTO getCodeSnippet() { return codeSnippet; }
-    public void setCodeSnippet(CodeSnippetDTO codeSnippet) { this.codeSnippet = codeSnippet; }
+    public Map<String, List<String>> getCodeTemplates() { return codeTemplates; }
+    public void setCodeTemplates(Map<String, List<String>> codeTemplates) { this.codeTemplates = codeTemplates; }
 
     public String getCreatedByName() { return createdByName; }
     public void setCreatedByName(String createdByName) { this.createdByName = createdByName; }

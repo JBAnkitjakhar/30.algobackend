@@ -7,6 +7,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 @Document(collection = "solutions")
 public class Solution {
@@ -14,7 +16,7 @@ public class Solution {
     @Id
     private String id;
 
-    @Indexed(name = "questionId_idx")  // ADD THIS INDEX
+    @Indexed(name = "questionId_idx")
     private String questionId;
 
     private String content;
@@ -27,7 +29,8 @@ public class Solution {
     private List<String> imageUrls;
     private List<String> visualizerFileIds;
     
-    private CodeSnippet codeSnippet;
+    // ✅ NEW: Map<Language, List<CodeStrings>> - supports multiple templates per language
+    private Map<String, List<String>> codeTemplates;
 
     private String createdByName;
 
@@ -35,33 +38,11 @@ public class Solution {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    // Inner class for code snippets
-    public static class CodeSnippet {
-        private String language;
-        private String code;
-        private String description;
-
-        public CodeSnippet() {}
-
-        public CodeSnippet(String language, String code, String description) {
-            this.language = language;
-            this.code = code;
-            this.description = description;
-        }
-
-        // Getters and Setters
-        public String getLanguage() { return language; }
-        public void setLanguage(String language) { this.language = language; }
-        public String getCode() { return code; }
-        public void setCode(String code) { this.code = code; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-    }
-
     // Constructors
     public Solution() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+        this.codeTemplates = new HashMap<>();
     }
 
     // Getters and Setters
@@ -104,9 +85,9 @@ public class Solution {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public CodeSnippet getCodeSnippet() { return codeSnippet; }
-    public void setCodeSnippet(CodeSnippet codeSnippet) { 
-        this.codeSnippet = codeSnippet;
+    public Map<String, List<String>> getCodeTemplates() { return codeTemplates; }
+    public void setCodeTemplates(Map<String, List<String>> codeTemplates) { 
+        this.codeTemplates = codeTemplates;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -130,6 +111,16 @@ public class Solution {
                (youtubeLink.contains("youtube.com") || youtubeLink.contains("youtu.be"));
     }
 
+    // ✅ Helper to count total code templates
+    public int getTotalCodeTemplatesCount() {
+        if (codeTemplates == null || codeTemplates.isEmpty()) {
+            return 0;
+        }
+        return codeTemplates.values().stream()
+                .mapToInt(List::size)
+                .sum();
+    }
+
     @Override
     public String toString() {
         return "Solution{" +
@@ -138,6 +129,7 @@ public class Solution {
                 ", createdByName='" + createdByName + '\'' +
                 ", hasYoutubeLink=" + hasValidYoutubeLink() +
                 ", hasDriveLink=" + hasValidDriveLink() +
+                ", totalCodeTemplates=" + getTotalCodeTemplatesCount() +
                 '}';
     }
 }

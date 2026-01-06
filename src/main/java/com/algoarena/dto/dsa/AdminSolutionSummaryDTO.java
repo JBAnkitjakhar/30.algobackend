@@ -2,6 +2,7 @@
 package com.algoarena.dto.dsa;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 public class AdminSolutionSummaryDTO {
 
@@ -11,7 +12,9 @@ public class AdminSolutionSummaryDTO {
     
     private int imageCount;
     private int visualizerCount;
-    private String codeLanguage;
+    
+    // ✅ CHANGED: Now shows language -> count (e.g., "java: 2, cpp: 1")
+    private Map<String, Integer> codeTemplatesCounts;
     
     private boolean hasYoutubeLink;
     private boolean hasDriveLink;
@@ -25,7 +28,7 @@ public class AdminSolutionSummaryDTO {
     public AdminSolutionSummaryDTO() {}
 
     public AdminSolutionSummaryDTO(String id, String questionId, int imageCount, 
-                                  int visualizerCount, String codeLanguage,
+                                  int visualizerCount, Map<String, Integer> codeTemplatesCounts,
                                   boolean hasYoutubeLink, boolean hasDriveLink,
                                   String createdByName, LocalDateTime createdAt,
                                   LocalDateTime updatedAt) {
@@ -33,7 +36,7 @@ public class AdminSolutionSummaryDTO {
         this.questionId = questionId;
         this.imageCount = imageCount;
         this.visualizerCount = visualizerCount;
-        this.codeLanguage = codeLanguage;
+        this.codeTemplatesCounts = codeTemplatesCounts;
         this.hasYoutubeLink = hasYoutubeLink;
         this.hasDriveLink = hasDriveLink;
         this.createdByName = createdByName;
@@ -41,7 +44,7 @@ public class AdminSolutionSummaryDTO {
         this.updatedAt = updatedAt;
     }
 
-    // Existing Getters and Setters...
+    // Getters and Setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -54,8 +57,10 @@ public class AdminSolutionSummaryDTO {
     public int getVisualizerCount() { return visualizerCount; }
     public void setVisualizerCount(int visualizerCount) { this.visualizerCount = visualizerCount; }
 
-    public String getCodeLanguage() { return codeLanguage; }
-    public void setCodeLanguage(String codeLanguage) { this.codeLanguage = codeLanguage; }
+    public Map<String, Integer> getCodeTemplatesCounts() { return codeTemplatesCounts; }
+    public void setCodeTemplatesCounts(Map<String, Integer> codeTemplatesCounts) { 
+        this.codeTemplatesCounts = codeTemplatesCounts; 
+    }
 
     public boolean isHasYoutubeLink() { return hasYoutubeLink; }
     public void setHasYoutubeLink(boolean hasYoutubeLink) { this.hasYoutubeLink = hasYoutubeLink; }
@@ -79,7 +84,7 @@ public class AdminSolutionSummaryDTO {
                 ", questionId='" + questionId + '\'' +
                 ", imageCount=" + imageCount +
                 ", visualizerCount=" + visualizerCount +
-                ", codeLanguage='" + codeLanguage + '\'' +
+                ", codeTemplatesCounts=" + codeTemplatesCounts +
                 ", hasYoutubeLink=" + hasYoutubeLink +
                 ", hasDriveLink=" + hasDriveLink +
                 ", createdByName='" + createdByName + '\'' +

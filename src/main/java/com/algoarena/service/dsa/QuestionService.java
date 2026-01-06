@@ -283,18 +283,46 @@ public class QuestionService {
 
         return questions.map(question -> {
             AdminQuestionSummaryDTO dto = new AdminQuestionSummaryDTO();
+
+            // Basic info
             dto.setId(question.getId());
             dto.setTitle(question.getTitle());
             dto.setLevel(question.getLevel());
             dto.setCategoryId(question.getCategoryId());
             dto.setDisplayOrder(question.getDisplayOrder());
+
+            // Image count
             dto.setImageCount(question.getImageUrls() != null ? question.getImageUrls().size() : 0);
 
-            boolean hasCodeTemplates = (question.getUserStarterCode() != null
-                    && !question.getUserStarterCode().isEmpty()) ||
-                    (question.getGeneralTemplate() != null && !question.getGeneralTemplate().isEmpty());
-            dto.setHasCodeSnippets(hasCodeTemplates);
+            // ✅ NEW: Set userStarterCode languages
+            if (question.getUserStarterCode() != null) {
+                dto.setUserStarterCodeLanguages(new java.util.ArrayList<>(question.getUserStarterCode().keySet()));
+            } else {
+                dto.setUserStarterCodeLanguages(new java.util.ArrayList<>());
+            }
 
+            // ✅ NEW: Set generalTemplate languages
+            if (question.getGeneralTemplate() != null) {
+                dto.setGeneralTemplateLanguages(new java.util.ArrayList<>(question.getGeneralTemplate().keySet()));
+            } else {
+                dto.setGeneralTemplateLanguages(new java.util.ArrayList<>());
+            }
+
+            // ✅ NEW: Set correctSolution languages
+            if (question.getCorrectSolution() != null) {
+                dto.setCorrectSolutionLanguages(new java.util.ArrayList<>(question.getCorrectSolution().keySet()));
+            } else {
+                dto.setCorrectSolutionLanguages(new java.util.ArrayList<>());
+            }
+
+            // ✅ NEW: Set testcase count
+            if (question.getTestcases() != null) {
+                dto.setTestcaseCount(question.getTestcases().size());
+            } else {
+                dto.setTestcaseCount(0);
+            }
+
+            // Metadata
             dto.setCreatedByName(question.getCreatedByName());
             dto.setUpdatedAt(question.getUpdatedAt());
             dto.setSolutionCount(solutionCounts.getOrDefault(question.getId(), 0));

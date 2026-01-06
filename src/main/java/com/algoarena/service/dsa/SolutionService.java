@@ -17,7 +17,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -40,7 +42,6 @@ public class SolutionService {
      */
     @Cacheable(value = "solutionDetail", key = "#id")
     public SolutionDTO getSolutionById(String id) {
-        // System.out.println("CACHE MISS: Fetching solution - ID: " + id);
         Solution solution = solutionRepository.findById(id).orElse(null);
         return solution != null ? SolutionDTO.fromEntity(solution) : null;
     }
@@ -50,7 +51,6 @@ public class SolutionService {
      */
     @Cacheable(value = "questionSolutions", key = "#questionId")
     public List<SolutionDTO> getSolutionsByQuestion(String questionId) {
-        // System.out.println("CACHE MISS: Fetching solutions for question - ID: " + questionId);
         List<Solution> solutions = solutionRepository.findByQuestionIdOrderByCreatedAtAsc(questionId);
         return solutions.stream()
                 .map(SolutionDTO::fromEntity)
@@ -82,18 +82,10 @@ public class SolutionService {
         solution.setImageUrls(solutionDTO.getImageUrls());
         solution.setVisualizerFileIds(solutionDTO.getVisualizerFileIds());
 
-        if (solutionDTO.getCodeSnippet() != null) {
-            Solution.CodeSnippet codeSnippet = new Solution.CodeSnippet(
-                    solutionDTO.getCodeSnippet().getLanguage(),
-                    solutionDTO.getCodeSnippet().getCode(),
-                    solutionDTO.getCodeSnippet().getDescription());
-            solution.setCodeSnippet(codeSnippet);
-        }
+        // ✅ NEW: Set code templates map
+        solution.setCodeTemplates(solutionDTO.getCodeTemplates());
 
         Solution savedSolution = solutionRepository.save(solution);
-
-        // System.out.println("✓ Created solution for question: " + questionId);
-        // System.out.println("✓ Cleared all solution caches");
 
         return SolutionDTO.fromEntity(savedSolution);
     }
@@ -116,19 +108,10 @@ public class SolutionService {
         solution.setImageUrls(solutionDTO.getImageUrls());
         solution.setVisualizerFileIds(solutionDTO.getVisualizerFileIds());
 
-        if (solutionDTO.getCodeSnippet() != null) {
-            Solution.CodeSnippet codeSnippet = new Solution.CodeSnippet(
-                    solutionDTO.getCodeSnippet().getLanguage(),
-                    solutionDTO.getCodeSnippet().getCode(),
-                    solutionDTO.getCodeSnippet().getDescription());
-            solution.setCodeSnippet(codeSnippet);
-        } else {
-            solution.setCodeSnippet(null);
-        }
+        // ✅ NEW: Update code templates map
+        solution.setCodeTemplates(solutionDTO.getCodeTemplates());
 
         Solution updatedSolution = solutionRepository.save(solution);
-
-        // System.out.println("✓ Updated solution: " + id);
 
         return SolutionDTO.fromEntity(updatedSolution);
     }
@@ -146,32 +129,27 @@ public class SolutionService {
         Solution solution = solutionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Solution not found"));
 
-        // ✅ STEP 1: Delete Cloudinary images
+        // Delete Cloudinary images
         if (solution.getImageUrls() != null && !solution.getImageUrls().isEmpty()) {
-            // System.out.println("Deleting " + solution.getImageUrls().size() + " images from solution...");
-
             for (String imageUrl : solution.getImageUrls()) {
                 try {
                     String publicId = extractPublicIdFromUrl(imageUrl);
                     cloudinaryService.deleteImage(publicId);
-                    // System.out.println("  ✓ Deleted image: " + publicId);
                 } catch (Exception e) {
                     System.err.println("  ✗ Failed to delete image: " + e.getMessage());
                 }
             }
         }
 
-        // ✅ STEP 2: Delete visualizer files
+        // Delete visualizer files
         try {
             visualizerService.deleteAllVisualizersForSolution(id);
-            // System.out.println("✓ Deleted visualizers for solution: " + id);
         } catch (Exception e) {
             System.err.println("Failed to clean up visualizer files: " + e.getMessage());
         }
 
-        // ✅ STEP 3: Delete solution from database
+        // Delete solution from database
         solutionRepository.deleteById(id);
-        // System.out.println("✓ Deleted solution: " + id);
     }
 
     /**
@@ -324,12 +302,10 @@ public class SolutionService {
     }
 
     /**
-     * Now returns data in ONE query with YouTube and Drive link indicators!
+     * ✅ UPDATED: Now returns language -> count mapping
      */
     @Cacheable(value = "adminSolutionsSummary", key = "'page_' + #pageable.pageNumber + '_size_' + #pageable.pageSize")
     public Page<AdminSolutionSummaryDTO> getAdminSolutionsSummary(Pageable pageable) {
-        // System.out.println("CACHE MISS: Fetching admin summary - Page: " + pageable.getPageNumber());
-
         Page<Solution> solutions = solutionRepository.findAllByOrderByCreatedAtDesc(pageable);
 
         return solutions.map(solution -> {
@@ -339,9 +315,16 @@ public class SolutionService {
             dto.setImageCount(solution.getImageUrls() != null ? solution.getImageUrls().size() : 0);
             dto.setVisualizerCount(
                     solution.getVisualizerFileIds() != null ? solution.getVisualizerFileIds().size() : 0);
-            dto.setCodeLanguage(solution.getCodeSnippet() != null ? solution.getCodeSnippet().getLanguage() : null);
 
-            // ✅ SET THE NEW FIELDS using helper methods from Solution model
+            // ✅ NEW: Calculate language -> count mapping
+            Map<String, Integer> templateCounts = new HashMap<>();
+            if (solution.getCodeTemplates() != null && !solution.getCodeTemplates().isEmpty()) {
+                solution.getCodeTemplates().forEach((lang, codes) -> {
+                    templateCounts.put(lang, codes != null ? codes.size() : 0);
+                });
+            }
+            dto.setCodeTemplatesCounts(templateCounts);
+
             dto.setHasYoutubeLink(solution.hasValidYoutubeLink());
             dto.setHasDriveLink(solution.hasValidDriveLink());
 
