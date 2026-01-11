@@ -83,20 +83,27 @@ public class QuestionCompilerService {
             List<TestCaseResult> testCaseResults = outputParserService.parseTestCaseResults(stdout);
 
             QuestionExecutionResponse.ExecutionMetrics metrics = new QuestionExecutionResponse.ExecutionMetrics();
+            
+            // Set test case counts
+            metrics.setTotalTestCases(testCaseResults.size());
             metrics.setExecutedTestCases(testCaseResults.size());
             
-            if (pistonResponse.getRun().getCpuTime() != null) {
-                metrics.setCpuTimeMs(pistonResponse.getRun().getCpuTime());
-            }
-            if (pistonResponse.getRun().getMemory() != null) {
-                metrics.setMemoryKb(pistonResponse.getRun().getMemory());
-            }
-
-            long totalTime = testCaseResults.stream()
+            // Calculate MAX TIME among all test cases (like LeetCode)
+            long maxTime = testCaseResults.stream()
                 .filter(tc -> tc.getTimeMs() != null)
                 .mapToLong(TestCaseResult::getTimeMs)
-                .sum();
-            metrics.setTotalTimeMs(totalTime);
+                .max()
+                .orElse(0L);
+            metrics.setMaxTimeMs(maxTime);
+            
+            // Get total memory from Piston (in bytes, convert to MB)
+            if (pistonResponse.getRun().getMemory() != null) {
+                long memoryBytes = pistonResponse.getRun().getMemory();
+                double memoryMb = memoryBytes / (1024.0 * 1024.0);
+                // Round to 2 decimal places
+                memoryMb = Math.round(memoryMb * 100.0) / 100.0;
+                metrics.setTotalMemoryMb(memoryMb);
+            }
 
             response.setSuccess(true);
             response.setMessage("Execution completed");

@@ -13,23 +13,19 @@ public class QuestionExecutionResponse {
 
     // Inner class for overall execution metrics
     public static class ExecutionMetrics {
-        private Long totalTimeMs;
-        private Long cpuTimeMs;
-        private Long memoryKb;
+        private Long maxTimeMs;           // Max time among all test cases (like LeetCode)
+        private Double totalMemoryMb;     // Total process memory in MB
         private int totalTestCases;
         private int executedTestCases;
 
         public ExecutionMetrics() {}
 
         // Getters and Setters
-        public Long getTotalTimeMs() { return totalTimeMs; }
-        public void setTotalTimeMs(Long totalTimeMs) { this.totalTimeMs = totalTimeMs; }
+        public Long getMaxTimeMs() { return maxTimeMs; }
+        public void setMaxTimeMs(Long maxTimeMs) { this.maxTimeMs = maxTimeMs; }
         
-        public Long getCpuTimeMs() { return cpuTimeMs; }
-        public void setCpuTimeMs(Long cpuTimeMs) { this.cpuTimeMs = cpuTimeMs; }
-        
-        public Long getMemoryKb() { return memoryKb; }
-        public void setMemoryKb(Long memoryKb) { this.memoryKb = memoryKb; }
+        public Double getTotalMemoryMb() { return totalMemoryMb; }
+        public void setTotalMemoryMb(Double totalMemoryMb) { this.totalMemoryMb = totalMemoryMb; }
         
         public int getTotalTestCases() { return totalTestCases; }
         public void setTotalTestCases(int totalTestCases) { this.totalTestCases = totalTestCases; }
