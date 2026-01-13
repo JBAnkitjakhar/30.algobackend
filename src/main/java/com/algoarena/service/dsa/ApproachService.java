@@ -117,7 +117,7 @@ public class ApproachService {
                 newApproach.setCodeContent(safeCode);
                 newApproach.setCodeLanguage(normalizedLanguage);
                 newApproach.setStatus(dto.getStatus());
-                
+
                 if (dto.getRuntime() != null) {
                     newApproach.setRuntime(dto.getRuntime());
                 }
@@ -126,23 +126,21 @@ public class ApproachService {
                 }
                 if (dto.getComplexityAnalysis() != null) {
                     newApproach.setComplexityAnalysis(new ApproachData.ComplexityAnalysis(
-                        dto.getComplexityAnalysis().getTimeComplexity(),
-                        dto.getComplexityAnalysis().getSpaceComplexity()
-                    ));
+                            dto.getComplexityAnalysis().getTimeComplexity(),
+                            dto.getComplexityAnalysis().getSpaceComplexity(),
+                            dto.getComplexityAnalysis().getComplexityDescription()));
                 }
                 if (dto.getWrongTestcase() != null) {
                     newApproach.setWrongTestcase(new ApproachData.TestcaseFailure(
-                        dto.getWrongTestcase().getInput(),
-                        dto.getWrongTestcase().getUserOutput(),
-                        dto.getWrongTestcase().getExpectedOutput()
-                    ));
+                            dto.getWrongTestcase().getInput(),
+                            dto.getWrongTestcase().getUserOutput(),
+                            dto.getWrongTestcase().getExpectedOutput()));
                 }
                 if (dto.getTleTestcase() != null) {
                     newApproach.setTleTestcase(new ApproachData.TestcaseFailure(
-                        dto.getTleTestcase().getInput(),
-                        dto.getTleTestcase().getUserOutput(),
-                        dto.getTleTestcase().getExpectedOutput()
-                    ));
+                            dto.getTleTestcase().getInput(),
+                            dto.getTleTestcase().getUserOutput(),
+                            dto.getTleTestcase().getExpectedOutput()));
                 }
 
                 userApproaches.addApproach(questionId, newApproach);
@@ -228,11 +226,10 @@ public class ApproachService {
                     throw new RuntimeException("Approach does not belong to this question");
                 }
 
-                // Update complexity
                 ApproachData.ComplexityAnalysis complexity = new ApproachData.ComplexityAnalysis(
-                    complexityDTO.getTimeComplexity(),
-                    complexityDTO.getSpaceComplexity()
-                );
+                        complexityDTO.getTimeComplexity(),
+                        complexityDTO.getSpaceComplexity(),
+                        complexityDTO.getComplexityDescription());
                 userApproaches.updateApproachComplexity(approachId, complexity);
 
                 userApproachesRepository.save(userApproaches);
@@ -373,4 +370,3 @@ public class ApproachService {
         }
     }
 }
- 

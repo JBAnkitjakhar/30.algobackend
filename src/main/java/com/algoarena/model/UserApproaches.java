@@ -26,11 +26,11 @@ public class UserApproaches {
 
     @Indexed
     private String userId;
-    
+
     private String userName;
-    
+
     private Map<String, List<ApproachData>> approaches = new HashMap<>();
-    
+
     private int totalApproaches = 0;
     private LocalDateTime lastUpdated;
 
@@ -54,20 +54,20 @@ public class UserApproaches {
     public static class ApproachData {
         private String id;
         private String questionId;
-        
+
         private String textContent; // Editable
         private String codeContent; // Read-only after creation
         private String codeLanguage; // Read-only after creation
-        
+
         private ApproachStatus status; // Read-only after creation
         private Long runtime; // Read-only after creation
         private Long memory; // Read-only after creation
         private ComplexityAnalysis complexityAnalysis; // Writable ONLY if null (one-time write)
         private TestcaseFailure wrongTestcase; // Read-only after creation
         private TestcaseFailure tleTestcase; // Read-only after creation
-        
+
         private int contentSize;
-        
+
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
 
@@ -89,12 +89,20 @@ public class UserApproaches {
         public static class ComplexityAnalysis {
             private String timeComplexity;
             private String spaceComplexity;
+            private String complexityDescription;
 
-            public ComplexityAnalysis() {}
+            public ComplexityAnalysis() {
+            }
 
             public ComplexityAnalysis(String timeComplexity, String spaceComplexity) {
                 this.timeComplexity = timeComplexity;
                 this.spaceComplexity = spaceComplexity;
+            }
+
+            public ComplexityAnalysis(String timeComplexity, String spaceComplexity, String complexityDescription) {
+                this.timeComplexity = timeComplexity;
+                this.spaceComplexity = spaceComplexity;
+                this.complexityDescription = complexityDescription;
             }
 
             public String getTimeComplexity() {
@@ -112,6 +120,14 @@ public class UserApproaches {
             public void setSpaceComplexity(String spaceComplexity) {
                 this.spaceComplexity = spaceComplexity;
             }
+
+            public String getComplexityDescription() {
+                return complexityDescription;
+            }
+
+            public void setComplexityDescription(String complexityDescription) {
+                this.complexityDescription = complexityDescription;
+            }
         }
 
         public static class TestcaseFailure {
@@ -119,7 +135,8 @@ public class UserApproaches {
             private String userOutput;
             private String expectedOutput;
 
-            public TestcaseFailure() {}
+            public TestcaseFailure() {
+            }
 
             public TestcaseFailure(String input, String userOutput, String expectedOutput) {
                 this.input = input;
@@ -321,15 +338,14 @@ public class UserApproaches {
     public void addApproach(String questionId, ApproachData approach) {
         int currentTotal = getTotalSizeForQuestion(questionId);
         int newTotal = currentTotal + approach.getContentSize();
-        
+
         if (newTotal > MAX_COMBINED_SIZE_PER_QUESTION_BYTES) {
             double remainingKB = (MAX_COMBINED_SIZE_PER_QUESTION_BYTES - currentTotal) / 1024.0;
             double attemptedKB = approach.getContentSize() / 1024.0;
             throw new RuntimeException(
-                String.format("Combined size limit exceeded! You have %.2f KB remaining for this question, " +
+                    String.format("Combined size limit exceeded! You have %.2f KB remaining for this question, " +
                             "but this approach is %.2f KB. Total limit is 20 KB across all approaches.",
-                            remainingKB, attemptedKB)
-            );
+                            remainingKB, attemptedKB));
         }
 
         approaches.computeIfAbsent(questionId, k -> new ArrayList<>()).add(approach);
@@ -347,7 +363,7 @@ public class UserApproaches {
         int oldSize = approach.getContentSize();
         String questionId = approach.getQuestionId();
         String oldText = approach.getTextContent();
-        
+
         // Update only text content
         approach.setTextContent(newTextContent);
         int newSize = approach.getContentSize();
@@ -359,12 +375,12 @@ public class UserApproaches {
             // Rollback
             approach.setTextContent(oldText);
             approach.updateContentSize();
-            
+
             double remainingKB = (MAX_COMBINED_SIZE_PER_QUESTION_BYTES - (currentTotal - oldSize)) / 1024.0;
             throw new RuntimeException(
-                String.format("Update would exceed 20 KB combined limit! You have %.2f KB remaining for this question.",
-                            remainingKB)
-            );
+                    String.format(
+                            "Update would exceed 20 KB combined limit! You have %.2f KB remaining for this question.",
+                            remainingKB));
         }
 
         approach.setUpdatedAt(LocalDateTime.now());

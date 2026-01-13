@@ -24,8 +24,7 @@ public class ApproachDetailDTO {
     private String codeContent;
 
     @NotNull(message = "Code language is required")
-    @Pattern(regexp = "^(java|python|javascript|cpp|c|csharp|go|rust|kotlin|swift|ruby|php|typescript)$", 
-             message = "Invalid programming language")
+    @Pattern(regexp = "^(java|python|javascript|cpp|c|csharp|go|rust|kotlin|swift|ruby|php|typescript)$", message = "Invalid programming language")
     private String codeLanguage;
 
     private ApproachStatus status;
@@ -46,7 +45,8 @@ public class ApproachDetailDTO {
         private String userOutput;
         private String expectedOutput;
 
-        public TestcaseFailureDTO() {}
+        public TestcaseFailureDTO() {
+        }
 
         public TestcaseFailureDTO(String input, String userOutput, String expectedOutput) {
             this.input = input;
@@ -79,7 +79,8 @@ public class ApproachDetailDTO {
         }
     }
 
-    public ApproachDetailDTO() {}
+    public ApproachDetailDTO() {
+    }
 
     public ApproachDetailDTO(ApproachData data, String userId, String userName) {
         this.id = data.getId();
@@ -92,30 +93,28 @@ public class ApproachDetailDTO {
         this.status = data.getStatus();
         this.runtime = data.getRuntime();
         this.memory = data.getMemory();
-        
+
         if (data.getComplexityAnalysis() != null) {
             this.complexityAnalysis = new ComplexityAnalysisDTO(
-                data.getComplexityAnalysis().getTimeComplexity(),
-                data.getComplexityAnalysis().getSpaceComplexity()
-            );
+                    data.getComplexityAnalysis().getTimeComplexity(),
+                    data.getComplexityAnalysis().getSpaceComplexity(),
+                    data.getComplexityAnalysis().getComplexityDescription());
         }
-        
+
         if (data.getWrongTestcase() != null) {
             this.wrongTestcase = new TestcaseFailureDTO(
-                data.getWrongTestcase().getInput(),
-                data.getWrongTestcase().getUserOutput(),
-                data.getWrongTestcase().getExpectedOutput()
-            );
+                    data.getWrongTestcase().getInput(),
+                    data.getWrongTestcase().getUserOutput(),
+                    data.getWrongTestcase().getExpectedOutput());
         }
-        
+
         if (data.getTleTestcase() != null) {
             this.tleTestcase = new TestcaseFailureDTO(
-                data.getTleTestcase().getInput(),
-                data.getTleTestcase().getUserOutput(),
-                data.getTleTestcase().getExpectedOutput()
-            );
+                    data.getTleTestcase().getInput(),
+                    data.getTleTestcase().getUserOutput(),
+                    data.getTleTestcase().getExpectedOutput());
         }
-        
+
         this.contentSize = data.getContentSize();
         this.contentSizeKB = data.getContentSize() / 1024.0;
         this.createdAt = data.getCreatedAt();
