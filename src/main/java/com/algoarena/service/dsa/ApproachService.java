@@ -35,6 +35,9 @@ public class ApproachService {
     @Autowired
     private HtmlSanitizer htmlSanitizer;
 
+    @Autowired
+    private SubmissionTrackingService submissionTrackingService;
+
     private static final int MAX_RETRY_ATTEMPTS = 3;
 
     public List<ApproachMetadataDTO> getMyApproachesForQuestion(String userId, String questionId) {
@@ -145,6 +148,7 @@ public class ApproachService {
 
                 userApproaches.addApproach(questionId, newApproach);
                 userApproachesRepository.save(userApproaches);
+                submissionTrackingService.recordSubmission(userId);
 
                 return new ApproachDetailDTO(newApproach, userId, user.getName());
 
