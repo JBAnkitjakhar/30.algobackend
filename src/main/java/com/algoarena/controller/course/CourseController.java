@@ -2,11 +2,13 @@
 package com.algoarena.controller.course;
 
 import com.algoarena.dto.course.CourseDocDTO;
+import com.algoarena.dto.course.CourseReadStatsDTO;
 import com.algoarena.dto.course.CourseTopicDTO;
 import com.algoarena.dto.course.CourseTopicNameDTO;
 import com.algoarena.dto.course.MoveDocRequest;
 import com.algoarena.model.User;
 import com.algoarena.service.course.CourseDocService;
+import com.algoarena.service.course.CourseReadProgressService;
 import com.algoarena.service.course.CourseTopicService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +30,9 @@ public class CourseController {
 
     @Autowired
     private CourseDocService docService;
+
+    @Autowired
+    private CourseReadProgressService readProgressService;
 
     // ==================== PUBLIC ENDPOINTS ====================
 
@@ -242,7 +247,8 @@ public class CourseController {
     @PutMapping("/topics/{topicId}/visibility")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<Map<String, Object>> toggleTopicVisibility(@PathVariable String topicId) {
-        // System.out.println("🔍 PUT request received for topic: " + topicId); // Add this
+        // System.out.println("🔍 PUT request received for topic: " + topicId); // Add
+        // this
         try {
             CourseTopicDTO updatedTopic = topicService.toggleTopicVisibility(topicId);
 
@@ -424,6 +430,62 @@ public class CourseController {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("error", "Failed to move document");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * Get user's read statistics
+     * GET /api/courses/read/stats
+     */
+    @GetMapping("/read/stats")
+    public ResponseEntity<Map<String, Object>> getUserReadStats(Authentication authentication) {
+        try {
+            User currentUser = (User) authentication.getPrincipal();
+            CourseReadStatsDTO stats = readProgressService.getUserReadStats(currentUser.getId());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", stats);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to fetch read statistics");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * Toggle document read/unread status
+     * PUT /api/courses/docs/{docId}/read
+     */
+    @PutMapping("/docs/{docId}/read")
+    public ResponseEntity<Map<String, Object>> toggleDocReadStatus(
+            @PathVariable String docId,
+            Authentication authentication) {
+        try {
+            User currentUser = (User) authentication.getPrincipal();
+            readProgressService.toggleDocReadStatus(currentUser.getId(), docId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Document read status toggled successfully");
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to toggle read status");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(400).body(errorResponse);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to toggle read status");
             errorResponse.put("message", e.getMessage());
             return ResponseEntity.status(500).body(errorResponse);
         }

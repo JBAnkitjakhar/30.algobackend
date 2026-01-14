@@ -105,7 +105,7 @@ public class CourseTopicService {
      * EVICTS: All related caches
      */
     @Transactional
-    @CacheEvict(value = { "courseTopic", "topicNamesPublic", "topicNamesAdmin", "courseDocsList", "courseDoc" }, allEntries = true)
+    @CacheEvict(value = { "courseTopic", "topicNamesPublic", "topicNamesAdmin", "courseDocsList", "courseDoc", "courseReadStats" }, allEntries = true)
     public CourseTopicDTO updateTopic(String id, CourseTopicDTO dto, User currentUser) {
         CourseTopic topic = topicRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Topic not found with id: " + id));
@@ -137,7 +137,7 @@ public class CourseTopicService {
      */
     @Transactional
     @CacheEvict(value = { "courseTopic", "courseDocsList", "topicNamesPublic",
-            "topicNamesAdmin", "courseDoc" }, allEntries = true)
+            "topicNamesAdmin", "courseDoc", "courseReadStats" }, allEntries = true)
     public CourseTopicDTO toggleTopicVisibility(String id) {
         CourseTopic topic = topicRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Topic not found with id: " + id));
@@ -159,7 +159,7 @@ public class CourseTopicService {
      */
     @Transactional
     @CacheEvict(value = { "courseTopic", "courseDocsList", "courseDoc", "topicNamesPublic",
-            "topicNamesAdmin" }, allEntries = true)
+            "topicNamesAdmin", "courseReadStats" }, allEntries = true)
     public void deleteTopic(String id) {
         CourseTopic topic = topicRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Topic not found with id: " + id));

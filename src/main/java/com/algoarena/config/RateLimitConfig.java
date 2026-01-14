@@ -21,8 +21,10 @@ public class RateLimitConfig {
     private final Map<String, Bucket> solutionReadCache = new ConcurrentHashMap<>();
     private final Map<String, Bucket> authCache = new ConcurrentHashMap<>();
     
-    // NEW: Course endpoints rate limiting
-    private final Map<String, Bucket> courseReadCache = new ConcurrentHashMap<>();
+    // COURSE: Separate buckets for docs vs progress
+    private final Map<String, Bucket> courseDocsReadCache = new ConcurrentHashMap<>();        // For reading docs
+    private final Map<String, Bucket> courseProgressReadCache = new ConcurrentHashMap<>();    // For getting read stats
+    private final Map<String, Bucket> courseProgressWriteCache = new ConcurrentHashMap<>();   // For marking read/unread
 
     public Bucket resolveAuthBucket(String userId) {
         return authCache.computeIfAbsent(userId, k -> createAuthBucket());
@@ -56,9 +58,19 @@ public class RateLimitConfig {
         return solutionReadCache.computeIfAbsent(userId, k -> createSolutionReadBucket());
     }
 
-    // NEW: Course read endpoints (30/min)
-    public Bucket resolveCourseReadBucket(String userId) {
-        return courseReadCache.computeIfAbsent(userId, k -> createCourseReadBucket());
+    // COURSE: Docs reading (30/min)
+    public Bucket resolveCourseDocsReadBucket(String userId) {
+        return courseDocsReadCache.computeIfAbsent(userId, k -> createCourseDocsReadBucket());
+    }
+
+    // COURSE: Progress reading (30/min)
+    public Bucket resolveCourseProgressReadBucket(String userId) {
+        return courseProgressReadCache.computeIfAbsent(userId, k -> createCourseProgressReadBucket());
+    }
+
+    // COURSE: Progress write - mark/unmark (10/min)
+    public Bucket resolveCourseProgressWriteBucket(String userId) {
+        return courseProgressWriteCache.computeIfAbsent(userId, k -> createCourseProgressWriteBucket());
     }
 
     private Bucket createAuthBucket() {
@@ -149,11 +161,35 @@ public class RateLimitConfig {
                 .build();
     }
 
-    // NEW: 30 requests per minute for course reads
-    private Bucket createCourseReadBucket() {
+    // COURSE: Reading docs (30/min)
+    private Bucket createCourseDocsReadBucket() {
         Bandwidth limit = Bandwidth.builder()
                 .capacity(30)
                 .refillIntervally(30, Duration.ofMinutes(1))
+                .build();
+
+        return Bucket.builder()
+                .addLimit(limit)
+                .build();
+    }
+
+    // COURSE: Getting read stats (30/min)
+    private Bucket createCourseProgressReadBucket() {
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(30)
+                .refillIntervally(30, Duration.ofMinutes(1))
+                .build();
+
+        return Bucket.builder()
+                .addLimit(limit)
+                .build();
+    }
+
+    // COURSE: Marking/unmarking read (10/min)
+    private Bucket createCourseProgressWriteBucket() {
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(10)
+                .refillIntervally(10, Duration.ofMinutes(1))
                 .build();
 
         return Bucket.builder()

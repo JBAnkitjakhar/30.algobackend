@@ -151,7 +151,7 @@ public class CourseDocService {
      * EVICTS: All related caches
      */
     @Transactional
-    @CacheEvict(value = { "courseDocsList", "courseDoc", "courseTopic" }, allEntries = true)
+    @CacheEvict(value = { "courseDocsList", "courseDoc", "courseTopic", "courseReadStats" }, allEntries = true)
     public void deleteDoc(String id) {
         CourseDoc doc = docRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
@@ -259,7 +259,7 @@ public class CourseDocService {
      * EVICTS: All related caches since both topics are affected
      */
     @Transactional
-    @CacheEvict(value = { "courseDocsList", "courseDoc", "courseTopic" }, allEntries = true)
+    @CacheEvict(value = { "courseDocsList", "courseDoc", "courseTopic", "courseReadStats" }, allEntries = true)
     public CourseDocDTO moveDocToTopic(String docId, String newTopicId) {
         // Find the document
         CourseDoc doc = docRepository.findById(docId)

@@ -56,10 +56,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        
+
                         // ✅ GENERIC OPTIONS - SECOND RULE
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        
+
                         // PUBLIC ENDPOINTS
                         .requestMatchers(
                                 "/auth/**",
@@ -85,8 +85,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/courses/topics").hasAnyRole("ADMIN", "SUPERADMIN")
                         .requestMatchers(HttpMethod.PUT, "/courses/topics/*").hasAnyRole("ADMIN", "SUPERADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/courses/topics/*").hasAnyRole("ADMIN", "SUPERADMIN")
-                        
-                        .requestMatchers(HttpMethod.PUT, "/courses/topics/*/visibility").hasAnyRole("ADMIN", "SUPERADMIN")
+
+                        .requestMatchers(HttpMethod.PUT, "/courses/topics/*/visibility")
+                        .hasAnyRole("ADMIN", "SUPERADMIN")
 
                         // COURSE DOCS - ADMIN ONLY
                         .requestMatchers(HttpMethod.POST, "/courses/docs").hasAnyRole("ADMIN", "SUPERADMIN")
@@ -124,12 +125,16 @@ public class SecurityConfig {
                                 "/compiler/**",
                                 "/users/progress",
                                 "/files/solutions/*/visualizers",
-                                "/files/visualizers/**")
+                                "/files/visualizers/**",
+                                "/courses/read/stats")
                         .authenticated()
 
                         // USER PROGRESS UPDATE ENDPOINTS
                         .requestMatchers(HttpMethod.PUT, "/questions/*/progress").authenticated()
                         .requestMatchers(HttpMethod.POST, "/questions/*/progress").authenticated()
+
+                        // COURSE READ/UNREAD TOGGLE
+                        .requestMatchers(HttpMethod.PUT, "/courses/docs/*/read").authenticated()
 
                         // USER APPROACH MANAGEMENT ENDPOINTS
                         .requestMatchers(HttpMethod.POST, "/approaches/question/*").authenticated()
