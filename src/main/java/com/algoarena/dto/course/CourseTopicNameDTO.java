@@ -7,16 +7,14 @@ public class CourseTopicNameDTO {
     
     private String id;
     private String name;
-    private Boolean isPublic;
-    private Integer displayOrder;
+    private String iconUrl;
 
     public CourseTopicNameDTO() {}
 
     public CourseTopicNameDTO(CourseTopic topic) {
         this.id = topic.getId();
         this.name = topic.getName();
-        this.isPublic = topic.getIsPublic();
-        this.displayOrder = topic.getDisplayOrder();
+        this.iconUrl = topic.getIconUrl();
     }
 
     public static CourseTopicNameDTO fromEntity(CourseTopic topic) {
@@ -40,19 +38,11 @@ public class CourseTopicNameDTO {
         this.name = name; 
     }
 
-    public Boolean getIsPublic() { 
-        return isPublic; 
+    public String getIconUrl() { 
+        return iconUrl; 
     }
     
-    public void setIsPublic(Boolean isPublic) { 
-        this.isPublic = isPublic; 
-    }
-
-    public Integer getDisplayOrder() { 
-        return displayOrder; 
-    }
-    
-    public void setDisplayOrder(Integer displayOrder) { 
-        this.displayOrder = displayOrder; 
+    public void setIconUrl(String iconUrl) { 
+        this.iconUrl = iconUrl; 
     }
 }
