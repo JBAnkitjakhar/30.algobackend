@@ -52,7 +52,10 @@ public class ApproachService {
         }
 
         List<ApproachData> approaches = userApproaches.getApproachesForQuestion(questionId);
+
+        // ✅ Sort by updatedAt descending (newest first)
         return approaches.stream()
+                .sorted((a, b) -> b.getUpdatedAt().compareTo(a.getUpdatedAt()))
                 .map(data -> new ApproachMetadataDTO(data, userId, userApproaches.getUserName()))
                 .collect(Collectors.toList());
     }
@@ -122,8 +125,10 @@ public class ApproachService {
         approach.setCodeLanguage(dto.getCodeLanguage() != null ? dto.getCodeLanguage() : "java");
         approach.setStatus(dto.getStatus() != null ? dto.getStatus() : UserApproaches.ApproachStatus.ACCEPTED);
 
-        if (dto.getRuntime() != null) approach.setRuntime(dto.getRuntime());
-        if (dto.getMemory() != null) approach.setMemory(dto.getMemory());
+        if (dto.getRuntime() != null)
+            approach.setRuntime(dto.getRuntime());
+        if (dto.getMemory() != null)
+            approach.setMemory(dto.getMemory());
 
         if (dto.getWrongTestcase() != null) {
             approach.setWrongTestcase(new ApproachData.TestcaseFailure(
@@ -176,7 +181,7 @@ public class ApproachService {
      * ✅ Update approach text - ATOMIC with Map-of-Maps
      */
     public ApproachDetailDTO updateApproach(String userId, String questionId, String approachId,
-                                           ApproachUpdateDTO dto) {
+            ApproachUpdateDTO dto) {
         Query findQuery = new Query(Criteria.where("userId").is(userId));
         UserApproaches userApproaches = mongoTemplate.findOne(findQuery, UserApproaches.class);
 
@@ -204,9 +209,11 @@ public class ApproachService {
         int adjustedTotal = currentTotal - oldSize + newSize;
 
         if (adjustedTotal > UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES) {
-            double remainingKB = (UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES - (currentTotal - oldSize)) / 1024.0;
+            double remainingKB = (UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES - (currentTotal - oldSize))
+                    / 1024.0;
             throw new RuntimeException(
-                    String.format("Update would exceed 20 KB combined limit! You have %.2f KB remaining for this question.",
+                    String.format(
+                            "Update would exceed 20 KB combined limit! You have %.2f KB remaining for this question.",
                             remainingKB));
         }
 
@@ -235,7 +242,7 @@ public class ApproachService {
      * ✅ Analyze complexity - ATOMIC with Map-of-Maps
      */
     public ApproachDetailDTO analyzeComplexity(String userId, String questionId, String approachId,
-                                               ComplexityAnalysisDTO complexityDTO) {
+            ComplexityAnalysisDTO complexityDTO) {
         Query findQuery = new Query(Criteria.where("userId").is(userId));
         UserApproaches userApproaches = mongoTemplate.findOne(findQuery, UserApproaches.class);
 
