@@ -2,7 +2,6 @@
 package com.algoarena.model;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.Indexed;
 
@@ -19,8 +18,7 @@ public class CourseReadProgress {
     @Indexed(unique = true)
     private String userId;
     
-    @Version
-    private Long version;
+    // ✅ Removed @Version - using atomic operations now, now we handling at database level
     
     private Map<String, LocalDateTime> readDocs = new HashMap<>();
     
@@ -29,22 +27,6 @@ public class CourseReadProgress {
     public CourseReadProgress(String userId) {
         this.id = userId;
         this.userId = userId;
-    }
-    
-    public void markDocAsRead(String docId) {
-        readDocs.put(docId, LocalDateTime.now());
-    }
-    
-    public boolean isDocRead(String docId) {
-        return readDocs.containsKey(docId);
-    }
-    
-    public LocalDateTime getReadAt(String docId) {
-        return readDocs.get(docId);
-    }
-    
-    public void unmarkDocAsRead(String docId) {
-        readDocs.remove(docId);
     }
     
     // Getters and Setters
@@ -56,9 +38,6 @@ public class CourseReadProgress {
         this.userId = userId;
         this.id = userId;
     }
-    
-    public Long getVersion() { return version; }
-    public void setVersion(Long version) { this.version = version; }
     
     public Map<String, LocalDateTime> getReadDocs() { return readDocs; }
     public void setReadDocs(Map<String, LocalDateTime> readDocs) { this.readDocs = readDocs; }

@@ -2,7 +2,6 @@
 package com.algoarena.model;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.Indexed;
 
@@ -19,8 +18,7 @@ public class UserProgress {
     @Indexed(unique = true)
     private String userId;
     
-    @Version  // Thread-safe: prevents concurrent modifications
-    private Long version;
+    // ✅ Removed @Version - using atomic operations now
     
     private Map<String, LocalDateTime> solvedQuestions = new HashMap<>();
     
@@ -31,61 +29,25 @@ public class UserProgress {
         this.userId = userId;
     }
     
-    public void addSolvedQuestion(String questionId) {
-        solvedQuestions.put(questionId, LocalDateTime.now());
-    }
+    // Getters and Setters
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
     
-    public boolean isQuestionSolved(String questionId) {
-        return solvedQuestions.containsKey(questionId);
-    }
-    
-    public LocalDateTime getSolvedAt(String questionId) {
-        return solvedQuestions.get(questionId);
-    }
-    
-    public void removeSolvedQuestion(String questionId) {
-        solvedQuestions.remove(questionId);
-    }
-    
-    public String getId() {
-        return id;
-    }
-    
-    public void setId(String id) {
-        this.id = id;
-    }
-    
-    public String getUserId() {
-        return userId;
-    }
-    
-    public void setUserId(String userId) {
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { 
         this.userId = userId;
         this.id = userId;
     }
     
-    public Long getVersion() {
-        return version;
-    }
-    
-    public void setVersion(Long version) {
-        this.version = version;
-    }
-    
-    public Map<String, LocalDateTime> getSolvedQuestions() {
-        return solvedQuestions;
-    }
-    
-    public void setSolvedQuestions(Map<String, LocalDateTime> solvedQuestions) {
+    public Map<String, LocalDateTime> getSolvedQuestions() { return solvedQuestions; }
+    public void setSolvedQuestions(Map<String, LocalDateTime> solvedQuestions) { 
         this.solvedQuestions = solvedQuestions;
     }
     
     @Override
     public String toString() {
         return "UserProgress{" +
-                "id='" + id + '\'' +
-                ", userId='" + userId + '\'' +
-                ", version=" + version +
+                "userId='" + userId + '\'' +
                 ", totalSolved=" + solvedQuestions.size() +
                 '}';
     }

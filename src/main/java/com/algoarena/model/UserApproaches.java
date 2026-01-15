@@ -2,7 +2,6 @@
 package com.algoarena.model;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.Indexed;
 
@@ -21,8 +20,7 @@ public class UserApproaches {
     @Id
     private String id;
 
-    @Version
-    private Long version;
+    // ✅ Removed @Version - using atomic operations now
 
     @Indexed
     private String userId;
@@ -311,6 +309,7 @@ public class UserApproaches {
         }
     }
 
+    // Helper methods for atomic operations
     public int getTotalSizeForQuestion(String questionId) {
         List<ApproachData> questionApproaches = approaches.get(questionId);
         if (questionApproaches == null) {
@@ -319,108 +318,6 @@ public class UserApproaches {
         return questionApproaches.stream()
                 .mapToInt(ApproachData::getContentSize)
                 .sum();
-    }
-
-    public int getRemainingBytesForQuestion(String questionId) {
-        int totalSize = getTotalSizeForQuestion(questionId);
-        return Math.max(0, MAX_COMBINED_SIZE_PER_QUESTION_BYTES - totalSize);
-    }
-
-    public double getRemainingKBForQuestion(String questionId) {
-        return getRemainingBytesForQuestion(questionId) / 1024.0;
-    }
-
-    public boolean canAddApproachSize(String questionId, int newApproachSize) {
-        int currentTotal = getTotalSizeForQuestion(questionId);
-        return (currentTotal + newApproachSize) <= MAX_COMBINED_SIZE_PER_QUESTION_BYTES;
-    }
-
-    public void addApproach(String questionId, ApproachData approach) {
-        int currentTotal = getTotalSizeForQuestion(questionId);
-        int newTotal = currentTotal + approach.getContentSize();
-
-        if (newTotal > MAX_COMBINED_SIZE_PER_QUESTION_BYTES) {
-            double remainingKB = (MAX_COMBINED_SIZE_PER_QUESTION_BYTES - currentTotal) / 1024.0;
-            double attemptedKB = approach.getContentSize() / 1024.0;
-            throw new RuntimeException(
-                    String.format("Combined size limit exceeded! You have %.2f KB remaining for this question, " +
-                            "but this approach is %.2f KB. Total limit is 20 KB across all approaches.",
-                            remainingKB, attemptedKB));
-        }
-
-        approaches.computeIfAbsent(questionId, k -> new ArrayList<>()).add(approach);
-        totalApproaches++;
-        lastUpdated = LocalDateTime.now();
-    }
-
-    // Only textContent can be updated
-    public void updateApproachDescription(String approachId, String newTextContent) {
-        ApproachData approach = findApproachById(approachId);
-        if (approach == null) {
-            throw new RuntimeException("Approach not found with id: " + approachId);
-        }
-
-        int oldSize = approach.getContentSize();
-        String questionId = approach.getQuestionId();
-        String oldText = approach.getTextContent();
-
-        // Update only text content
-        approach.setTextContent(newTextContent);
-        int newSize = approach.getContentSize();
-
-        int currentTotal = getTotalSizeForQuestion(questionId);
-        int adjustedTotal = currentTotal - oldSize + newSize;
-
-        if (adjustedTotal > MAX_COMBINED_SIZE_PER_QUESTION_BYTES) {
-            // Rollback
-            approach.setTextContent(oldText);
-            approach.updateContentSize();
-
-            double remainingKB = (MAX_COMBINED_SIZE_PER_QUESTION_BYTES - (currentTotal - oldSize)) / 1024.0;
-            throw new RuntimeException(
-                    String.format(
-                            "Update would exceed 20 KB combined limit! You have %.2f KB remaining for this question.",
-                            remainingKB));
-        }
-
-        approach.setUpdatedAt(LocalDateTime.now());
-        lastUpdated = LocalDateTime.now();
-    }
-
-    // ⭐ NEW: Update complexity analysis ONLY if null (one-time write)
-    public void updateApproachComplexity(String approachId, ApproachData.ComplexityAnalysis complexityAnalysis) {
-        ApproachData approach = findApproachById(approachId);
-        if (approach == null) {
-            throw new RuntimeException("Approach not found with id: " + approachId);
-        }
-
-        // Only allow if approach is ACCEPTED
-        if (approach.getStatus() != ApproachStatus.ACCEPTED) {
-            throw new RuntimeException("Complexity analysis can only be added to ACCEPTED approaches");
-        }
-
-        // Only allow if complexity is null (one-time write)
-        if (approach.getComplexityAnalysis() != null) {
-            throw new RuntimeException("Complexity analysis already exists and cannot be modified");
-        }
-
-        approach.setComplexityAnalysis(complexityAnalysis);
-        approach.setUpdatedAt(LocalDateTime.now());
-        lastUpdated = LocalDateTime.now();
-    }
-
-    public void removeApproach(String questionId, String approachId) {
-        List<ApproachData> questionApproaches = approaches.get(questionId);
-        if (questionApproaches != null) {
-            boolean removed = questionApproaches.removeIf(a -> a.getId().equals(approachId));
-            if (removed) {
-                if (questionApproaches.isEmpty()) {
-                    approaches.remove(questionId);
-                }
-                totalApproaches--;
-                lastUpdated = LocalDateTime.now();
-            }
-        }
     }
 
     public ApproachData findApproachById(String approachId) {
@@ -459,14 +356,6 @@ public class UserApproaches {
     public void setId(String id) {
         this.id = id;
         this.userId = id;
-    }
-
-    public Long getVersion() {
-        return version;
-    }
-
-    public void setVersion(Long version) {
-        this.version = version;
     }
 
     public String getUserId() {
@@ -516,7 +405,6 @@ public class UserApproaches {
                 "userId='" + userId + '\'' +
                 ", userName='" + userName + '\'' +
                 ", totalApproaches=" + totalApproaches +
-                ", version=" + version +
                 ", questionsWithApproaches=" + approaches.size() +
                 '}';
     }

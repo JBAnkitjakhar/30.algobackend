@@ -2,6 +2,7 @@
 package com.algoarena.controller.admin;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.algoarena.dto.admin.AdminOverviewDTO;
@@ -9,8 +10,9 @@ import com.algoarena.dto.admin.UserDTO;
 import com.algoarena.dto.dsa.AdminQuestionSummaryDTO;
 import com.algoarena.dto.dsa.AdminSolutionSummaryDTO;
 import com.algoarena.model.User;
+import com.algoarena.model.UserApproaches;
 import com.algoarena.model.UserRole;
- 
+
 import com.algoarena.service.admin.AdminOverviewService;
 import com.algoarena.service.admin.UserService;
 import com.algoarena.service.dsa.QuestionService;
@@ -20,6 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -41,6 +46,9 @@ public class AdminController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     @GetMapping("/overview")
     public ResponseEntity<AdminOverviewDTO> getAdminOverview() {
@@ -173,6 +181,92 @@ public class AdminController {
 
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Get UserApproaches document size - CORRECTED
+     * GET /api/admin/users/{userId}/approaches/size
+     */
+    @GetMapping("/users/{userId}/approaches/size")
+    public ResponseEntity<Map<String, Object>> getUserApproachesSize(@PathVariable String userId) {
+        try {
+            // Get the UserApproaches entity
+            Query query = new Query(Criteria.where("userId").is(userId));
+            UserApproaches userApproaches = mongoTemplate.findOne(query, UserApproaches.class);
+
+            if (userApproaches == null) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("success", false);
+                errorResponse.put("error", "User approaches not found");
+                return ResponseEntity.status(404).body(errorResponse);
+            }
+
+            // ✅ Calculate REAL size by getting all content
+            int totalContentSize = 0;
+            int questionsWithApproaches = 0;
+
+            Map<String, Integer> sizePerQuestion = new HashMap<>();
+
+            // Iterate through all questions and calculate their sizes
+            for (Map.Entry<String, List<UserApproaches.ApproachData>> entry : userApproaches.getApproaches()
+                    .entrySet()) {
+                String questionId = entry.getKey();
+                List<UserApproaches.ApproachData> approaches = entry.getValue();
+
+                int questionSize = 0;
+                for (UserApproaches.ApproachData approach : approaches) {
+                    questionSize += approach.getContentSize();
+                }
+
+                sizePerQuestion.put(questionId, questionSize);
+                totalContentSize += questionSize;
+                questionsWithApproaches++;
+            }
+
+            // Estimate document overhead (metadata, field names, etc.)
+            // Rough estimate: ~50-100 bytes per approach + base document overhead
+            int totalApproaches = userApproaches.getTotalApproaches();
+            int estimatedOverhead = 500 + (totalApproaches * 80); // Base + per-approach overhead
+            int estimatedTotalSize = totalContentSize + estimatedOverhead;
+
+            double contentSizeKB = totalContentSize / 1024.0;
+            double estimatedSizeKB = estimatedTotalSize / 1024.0;
+            double estimatedSizeMB = estimatedSizeKB / 1024.0;
+            double percentageOfLimit = (estimatedSizeMB / 16.0) * 100;
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("userId", userId);
+            response.put("totalApproaches", totalApproaches);
+            response.put("questionsWithApproaches", questionsWithApproaches);
+
+            // Content size (just text + code)
+            response.put("contentSizeBytes", totalContentSize);
+            response.put("contentSizeKB", String.format("%.2f KB", contentSizeKB));
+
+            // Estimated total document size (content + metadata)
+            response.put("estimatedDocumentBytes", estimatedTotalSize);
+            response.put("estimatedDocumentKB", String.format("%.2f KB", estimatedSizeKB));
+            response.put("estimatedDocumentMB", String.format("%.4f MB", estimatedSizeMB));
+
+            response.put("percentageOfLimit", String.format("%.2f%%", percentageOfLimit));
+            response.put("maxSizeLimit", "16 MB");
+            response.put("warning", estimatedSizeMB > 15 ? "⚠️ Document size approaching 16 MB limit!" : null);
+
+            // Per-question breakdown
+            response.put("sizePerQuestion", sizePerQuestion);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to calculate document size");
+            errorResponse.put("message", e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
     public static class RoleUpdateRequest {
         private UserRole role;
 

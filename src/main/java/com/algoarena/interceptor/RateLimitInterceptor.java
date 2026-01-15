@@ -68,98 +68,77 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         // ========================================
         // AUTH ENDPOINTS (20/min)
         // ========================================
-        if (requestURI.startsWith("/auth/me") ||
-                requestURI.startsWith("/auth/refresh")) {
+        if (requestURI.startsWith("/api/auth/me") ||
+                requestURI.startsWith("/api/auth/refresh")) {
             logger.debug("📌 Matched: AUTH bucket");
             return rateLimitConfig.resolveAuthBucket(userId);
         }
 
-        // ========================================
-        // COURSE PROGRESS ENDPOINTS - MUST BE FIRST
-        // ========================================
-        
-        // Course progress write: mark/unmark doc as read (10/min)
+        // Course progress write (10/min)
         if ((method.equals("POST") || method.equals("PUT")) &&
                 requestURI.matches("/api/courses/docs/[^/]+/read")) {
             logger.debug("📌 Matched: COURSE PROGRESS WRITE bucket (10/min)");
             return rateLimitConfig.resolveCourseProgressWriteBucket(userId);
         }
 
-        // Course progress read: get read stats (30/min)
-        if (method.equals("GET") && requestURI.equals("/courses/read/stats")) {
+        // Course progress read (30/min)
+        if (method.equals("GET") && requestURI.equals("/api/courses/read/stats")) {
             logger.debug("📌 Matched: COURSE PROGRESS READ bucket (30/min)");
             return rateLimitConfig.resolveCourseProgressReadBucket(userId);
         }
 
-        // ========================================
-        // COURSE DOCS READ ENDPOINTS (30/min)
-        // ========================================
-        if (method.equals("GET") && requestURI.startsWith("/courses")) {
+        // COURSE DOCS READ (30/min)
+        if (method.equals("GET") && requestURI.startsWith("/api/courses")) {
             logger.debug("📌 Matched: COURSE DOCS READ bucket (30/min)");
             return rateLimitConfig.resolveCourseDocsReadBucket(userId);
         }
 
-        // ========================================
-        // SPECIFIC READ ENDPOINTS (30/min each)
-        // ========================================
-
-        // Question read endpoints
+        // Question read
         if (method.equals("GET") &&
-                (requestURI.matches("/questions/[^/]+") ||
-                        requestURI.equals("/questions/metadata"))) {
+                (requestURI.matches("/api/questions/[^/]+") ||
+                        requestURI.equals("/api/questions/metadata"))) {
             logger.debug("📌 Matched: QUESTION READ bucket");
             return rateLimitConfig.resolveQuestionReadBucket(userId);
         }
 
-        // Category read endpoints
-        if (method.equals("GET") && requestURI.startsWith("/categories")) {
+        // Category read
+        if (method.equals("GET") && requestURI.startsWith("/api/categories")) {
             logger.debug("📌 Matched: CATEGORY READ bucket");
             return rateLimitConfig.resolveCategoryReadBucket(userId);
         }
 
-        // Solution read endpoints
-        if (method.equals("GET") && requestURI.startsWith("/solutions")) {
+        // Solution read
+        if (method.equals("GET") && requestURI.startsWith("/api/solutions")) {
             logger.debug("📌 Matched: SOLUTION READ bucket");
             return rateLimitConfig.resolveSolutionReadBucket(userId);
         }
 
-        // ========================================
-        // APPROACH ENDPOINTS
-        // ========================================
-
-        // Approach write endpoints (5/min)
+        // Approach write (5/min)
         if ((method.equals("POST") || method.equals("PUT") || method.equals("DELETE")) &&
-                requestURI.contains("/approaches")) {
+                requestURI.contains("/api/approaches")) {
             logger.debug("📌 Matched: APPROACH WRITE bucket");
             return rateLimitConfig.resolveApproachWriteBucket(userId);
         }
 
-        // Approach read endpoints (20/min)
-        if (method.equals("GET") && requestURI.contains("/approaches")) {
+        // Approach read (20/min)
+        if (method.equals("GET") && requestURI.contains("/api/approaches")) {
             logger.debug("📌 Matched: APPROACH READ bucket");
             return rateLimitConfig.resolveApproachReadBucket(userId);
         }
 
-        // ========================================
-        // USER MARK/UNMARK OPERATIONS (10/min)
-        // ========================================
+        // USER MARK/UNMARK (10/min)
         if ((method.equals("POST") || method.equals("DELETE")) &&
-                requestURI.contains("/user/me/")) {
+                requestURI.contains("/api/user/me/")) {
             logger.debug("📌 Matched: USER WRITE bucket");
             return rateLimitConfig.resolveWriteBucket(userId);
         }
 
-        // ========================================
-        // GENERIC FALLBACKS - MUST BE LAST
-        // ========================================
-
-        // Generic write endpoints (10/min)
+        // GENERIC FALLBACKS
         if (method.equals("POST") || method.equals("PUT") || method.equals("DELETE")) {
             logger.debug("📌 Matched: GENERIC WRITE bucket");
             return rateLimitConfig.resolveWriteBucket(userId);
         }
 
-        // Generic read endpoints (60/min)
         if (method.equals("GET")) {
             logger.debug("📌 Matched: GENERIC READ bucket");
             return rateLimitConfig.resolveReadBucket(userId);

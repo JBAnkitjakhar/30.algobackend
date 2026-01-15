@@ -1,31 +1,33 @@
-// File: src/main/java/com/algoarena/service/dsa/UserProgressService.java
+// src/main/java/com/algoarena/service/dsa/UserProgressService.java
 package com.algoarena.service.dsa;
 
 import com.algoarena.dto.user.UserMeStatsDTO;
 import com.algoarena.dto.user.QuestionSolveStatusDTO;
 import com.algoarena.exception.*;
-import com.algoarena.model.UserProgress;
 import com.algoarena.repository.QuestionRepository;
-import com.algoarena.repository.UserProgressRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import com.algoarena.model.UserProgress;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 
 @Service
 public class UserProgressService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserProgressService.class);
-    private static final int MAX_RETRIES = 3;
 
     @Autowired
-    private UserProgressRepository userProgressRepository;
+    private MongoTemplate mongoTemplate;
 
     @Autowired
     private QuestionRepository questionRepository;
@@ -41,203 +43,130 @@ public class UserProgressService {
 
     /**
      * Get user stats - cached by userId
-     * Rate limiting handled by RateLimitInterceptor (60/min for reads)
      */
     @Cacheable(value = "userMeStats", key = "#userId")
     public UserMeStatsDTO getUserMeStats(String userId) {
-        
-        UserProgress progress = userProgressRepository.findByUserId(userId)
-                .orElse(new UserProgress(userId));
+        Query query = new Query(Criteria.where("userId").is(userId));
+        UserProgress progress = mongoTemplate.findOne(query, UserProgress.class);
 
-        int totalSolved = progress.getSolvedQuestions().size();
-        
-        return new UserMeStatsDTO(totalSolved, progress.getSolvedQuestions());
-    }
+        if (progress == null) {
+            return new UserMeStatsDTO(0, new HashMap<>());
+        }
 
-    public UserProgress getUserProgress(String userId) {
-        return userProgressRepository.findByUserId(userId)
-                .orElse(new UserProgress(userId));
-    }
-
-    public UserProgress createUserProgress(String userId) {
-        UserProgress progress = new UserProgress(userId);
-        return userProgressRepository.save(progress);
-    }
-
-    public UserProgress getOrCreateUserProgress(String userId) {
-        return userProgressRepository.findByUserId(userId)
-                .orElseGet(() -> createUserProgress(userId));
+        return new UserMeStatsDTO(
+            progress.getSolvedQuestions().size(),
+            progress.getSolvedQuestions()
+        );
     }
 
     /**
-     * ✅ NEW: Get question solve status with timestamp
-     * Rate limiting handled by RateLimitInterceptor (60/min for reads)
+     * Get question solve status with timestamp
      */
     public QuestionSolveStatusDTO getQuestionSolveStatus(String userId, String questionId) {
         validateQuestionId(questionId);
         
-        UserProgress progress = userProgressRepository.findByUserId(userId).orElse(null);
+        Query query = new Query(Criteria.where("userId").is(userId));
+        UserProgress progress = mongoTemplate.findOne(query, UserProgress.class);
         
-        if (progress == null || !progress.isQuestionSolved(questionId)) {
+        if (progress == null || !progress.getSolvedQuestions().containsKey(questionId)) {
             return QuestionSolveStatusDTO.notSolved();
         }
         
-        LocalDateTime solvedAt = progress.getSolvedAt(questionId);
+        LocalDateTime solvedAt = progress.getSolvedQuestions().get(questionId);
         return QuestionSolveStatusDTO.solved(solvedAt);
     }
 
-    /** 
-     * Check if question is solved (returns boolean only)
-     * Rate limiting handled by RateLimitInterceptor (60/min for reads)
+    /**
+     * Check if question is solved
      */
     public boolean isQuestionSolved(String userId, String questionId) {
         validateQuestionId(questionId);
         
-        return userProgressRepository.findByUserId(userId)
-                .map(progress -> progress.isQuestionSolved(questionId))
-                .orElse(false);
+        Query query = new Query(Criteria.where("userId").is(userId));
+        UserProgress progress = mongoTemplate.findOne(query, UserProgress.class);
+        
+        return progress != null && progress.getSolvedQuestions().containsKey(questionId);
     }
 
     /**
-     * Mark question as solved - evicts ONLY this user's cache
-     * Rate limiting handled by RateLimitInterceptor (10/min for writes)
+     * Mark question as solved using atomic operations
      */
     @CacheEvict(value = "userMeStats", key = "#userId")
     public void markQuestionAsSolved(String userId, String questionId) {
         validateQuestionId(questionId);
-        
-        int attempt = 0;
-        
-        while (attempt < MAX_RETRIES) {
-            try {
-                if (!questionRepository.existsById(questionId)) {
-                    throw new QuestionNotFoundException(questionId);
-                }
 
-                UserProgress progress = getOrCreateUserProgress(userId);
-
-                if (progress.isQuestionSolved(questionId)) {
-                    throw new QuestionAlreadySolvedException(questionId);
-                }
-
-                progress.addSolvedQuestion(questionId);
-                userProgressRepository.save(progress);
-                
-                logger.info("✅ User {} marked question {} as solved", userId, questionId);
-                return;
-                
-            } catch (IllegalArgumentException | QuestionNotFoundException | QuestionAlreadySolvedException e) {
-                throw e;
-                
-            } catch (OptimisticLockingFailureException e) {
-                attempt++;
-                if (attempt >= MAX_RETRIES) {
-                    logger.error("❌ Failed to mark question after {} attempts", MAX_RETRIES);
-                    throw new ConcurrentModificationException();
-                }
-                
-                logger.warn("⚠️ Optimistic lock conflict, retrying... (attempt {}/{})", 
-                        attempt, MAX_RETRIES);
-                
-                try {
-                    Thread.sleep(50 * attempt);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Operation interrupted");
-                }
-            }
+        // Verify question exists
+        if (!questionRepository.existsById(questionId)) {
+            throw new QuestionNotFoundException(questionId);
         }
+
+        // Check if already solved
+        Query query = new Query(Criteria.where("userId").is(userId));
+        UserProgress progress = mongoTemplate.findOne(query, UserProgress.class);
+
+        if (progress != null && progress.getSolvedQuestions().containsKey(questionId)) {
+            throw new QuestionAlreadySolvedException(questionId);
+        }
+
+        // ✅ MARK: Add to Map atomically
+        Update update = new Update()
+            .setOnInsert("userId", userId)
+            .set("solvedQuestions." + questionId, LocalDateTime.now());
+        
+        mongoTemplate.upsert(query, update, UserProgress.class);
+        logger.info("✅ User {} marked question {} as solved", userId, questionId);
     }
 
     /**
-     * Unmark question - evicts ONLY this user's cache
-     * Rate limiting handled by RateLimitInterceptor (10/min for writes)
+     * Unmark question using atomic operations
      */
     @CacheEvict(value = "userMeStats", key = "#userId")
     public void unmarkQuestionAsSolved(String userId, String questionId) {
         validateQuestionId(questionId);
-        
-        int attempt = 0;
-        
-        while (attempt < MAX_RETRIES) {
-            try {
-                UserProgress progress = userProgressRepository.findByUserId(userId)
-                        .orElseThrow(() -> new RuntimeException("User progress not found"));
 
-                if (!progress.isQuestionSolved(questionId)) {
-                    throw new QuestionNotSolvedException(questionId);
-                }
+        // Check if question is solved
+        Query query = new Query(Criteria.where("userId").is(userId));
+        UserProgress progress = mongoTemplate.findOne(query, UserProgress.class);
 
-                progress.removeSolvedQuestion(questionId);
-                userProgressRepository.save(progress);
-                
-                logger.info("✅ User {} unmarked question {}", userId, questionId);
-                return;
-                
-            } catch (IllegalArgumentException | QuestionNotSolvedException e) {
-                throw e;
-                
-            } catch (OptimisticLockingFailureException e) {
-                attempt++;
-                if (attempt >= MAX_RETRIES) {
-                    throw new ConcurrentModificationException();
-                }
-                
-                logger.warn("⚠️ Optimistic lock conflict, retrying...");
-                
-                try {
-                    Thread.sleep(50 * attempt);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Operation interrupted");
-                }
-            }
+        if (progress == null || !progress.getSolvedQuestions().containsKey(questionId)) {
+            throw new QuestionNotSolvedException(questionId);
         }
+
+        // ✅ UNMARK: Remove from Map atomically
+        Update update = new Update().unset("solvedQuestions." + questionId);
+        mongoTemplate.updateFirst(query, update, UserProgress.class);
+        
+        logger.info("✅ User {} unmarked question {}", userId, questionId);
     }
 
-    /** for question deletion
-     * Remove question from all users - clears ALL caches
-     * (Admin operation - no rate limiting needed)
+    /**
+     * Remove question from all users (Admin operation)
      */
     @CacheEvict(value = "userMeStats", allEntries = true)
     public int removeQuestionFromAllUsers(String questionId) {
-        List<UserProgress> allProgress = userProgressRepository.findAll();
-        int removedCount = 0;
+        Query query = new Query(Criteria.where("solvedQuestions." + questionId).exists(true));
+        Update update = new Update().unset("solvedQuestions." + questionId);
+        
+        com.mongodb.client.result.UpdateResult result = mongoTemplate.updateMulti(
+            query, 
+            update, 
+            UserProgress.class
+        );
 
-        for (UserProgress progress : allProgress) {
-            if (progress.isQuestionSolved(questionId)) {
-                progress.removeSolvedQuestion(questionId);
-                userProgressRepository.save(progress);
-                removedCount++;
-            }
-        }
-
+        int removedCount = (int) result.getModifiedCount();
         logger.info("Removed question {} from {} users", questionId, removedCount);
         return removedCount;
     }
 
-    /**  for category deletion
-     * Remove questions from all users - clears ALL caches
-     * (Admin operation - no rate limiting needed)
+    /**
+     * Remove questions from all users (Admin operation)
      */
     @CacheEvict(value = "userMeStats", allEntries = true)
     public int removeQuestionsFromAllUsers(List<String> questionIds) {
-        List<UserProgress> allProgress = userProgressRepository.findAll();
         int totalRemoved = 0;
 
-        for (UserProgress progress : allProgress) {
-            int removedFromUser = 0;
-            for (String questionId : questionIds) {
-                if (progress.isQuestionSolved(questionId)) {
-                    progress.removeSolvedQuestion(questionId);
-                    removedFromUser++;
-                }
-            }
-
-            if (removedFromUser > 0) {
-                userProgressRepository.save(progress);
-                totalRemoved += removedFromUser;
-            }
+        for (String questionId : questionIds) {
+            totalRemoved += removeQuestionFromAllUsers(questionId);
         }
 
         logger.info("Removed {} question entries from all users", totalRemoved);
