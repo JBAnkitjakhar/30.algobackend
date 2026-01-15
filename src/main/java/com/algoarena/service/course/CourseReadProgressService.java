@@ -4,8 +4,8 @@ package com.algoarena.service.course;
 import com.algoarena.dto.course.CourseReadStatsDTO;
 import com.algoarena.model.CourseReadProgress;
 import com.algoarena.repository.CourseDocRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+// import org.slf4j.Logger;
+// import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -21,7 +21,7 @@ import java.util.HashMap;
 @Service
 public class CourseReadProgressService {
 
-    private static final Logger logger = LoggerFactory.getLogger(CourseReadProgressService.class);
+    // private static final Logger logger = LoggerFactory.getLogger(CourseReadProgressService.class);
 
     @Autowired
     private MongoTemplate mongoTemplate;
@@ -70,7 +70,7 @@ public class CourseReadProgressService {
             // ✅ UNMARK: Remove from Map atomically
             Update update = new Update().unset("readDocs." + docId);
             mongoTemplate.updateFirst(query, update, CourseReadProgress.class);
-            logger.info("✅ User {} unmarked doc {} as read", userId, docId);
+            // logger.info("✅ User {} unmarked doc {} as read", userId, docId);
         } else {
             // ✅ MARK: Add to Map atomically
             Update update = new Update()
@@ -78,7 +78,7 @@ public class CourseReadProgressService {
                     .set("readDocs." + docId, LocalDateTime.now());
 
             mongoTemplate.upsert(query, update, CourseReadProgress.class);
-            logger.info("✅ User {} marked doc {} as read", userId, docId);
+            // logger.info("✅ User {} marked doc {} as read", userId, docId);
         }
     }
 }

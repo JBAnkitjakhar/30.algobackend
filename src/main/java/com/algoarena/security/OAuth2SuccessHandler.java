@@ -45,7 +45,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String registrationId = extractRegistrationId(request);
         
-        logger.info("OAuth2 authentication successful for provider: {}", registrationId);
+        // logger.info("OAuth2 authentication successful for provider: {}", registrationId);
         logger.debug("OAuth2 user attributes: {}", oAuth2User.getAttributes());
 
         try {
@@ -56,7 +56,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 throw new RuntimeException("Failed to process OAuth2 user - user object is null");
             }
             
-            logger.info("User processed successfully: {} (ID: {})", user.getEmail(), user.getId());
+            // logger.info("User processed successfully: {} (ID: {})", user.getEmail(), user.getId());
             
             // Generate JWT token
             String token = jwtService.generateToken(user);
@@ -64,7 +64,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             
             // Get frontend URL (use first allowed origin)
             String frontendUrl = allowedOrigins.split(",")[0].trim();
-            logger.info("Using frontend URL for redirect: {}", frontendUrl);
+            // logger.info("Using frontend URL for redirect: {}", frontendUrl);
             
             // Redirect to frontend with token
             String targetUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/auth/callback")
@@ -72,7 +72,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                     .queryParam("user", user.getId())
                     .build().toUriString();
             
-            logger.info("Redirecting to frontend: {}", targetUrl);
+            // logger.info("Redirecting to frontend: {}", targetUrl);
             getRedirectStrategy().sendRedirect(request, response, targetUrl);
             
         } catch (Exception e) {
@@ -92,7 +92,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                     .queryParam("provider", registrationId)
                     .build().toUriString();
             
-            logger.info("Redirecting to error page: {}", errorUrl);
+            // logger.info("Redirecting to error page: {}", errorUrl);
             getRedirectStrategy().sendRedirect(request, response, errorUrl);
         }
     }

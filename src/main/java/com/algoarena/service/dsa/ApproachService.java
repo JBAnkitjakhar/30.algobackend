@@ -103,87 +103,80 @@ public class ApproachService {
         usage.put("remainingKB", String.format("%.2f KB", remainingKB));
         usage.put("maxKB", String.format("%.2f KB", maxKB));
         usage.put("approachCount", approachCount);
-        usage.put("percentageUsed", String.format("%.1f%%", (usedBytes * 100.0) / UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES));
+        usage.put("percentageUsed",
+                String.format("%.1f%%", (usedBytes * 100.0) / UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES));
 
         return usage;
     }
 
     /**
-     * ✅ Create new approach - ATOMIC OPERATION
+     * ✅ Create new approach - ATOMIC with Map-of-Maps
      */
     public ApproachDetailDTO createApproach(String userId, String questionId, ApproachDetailDTO dto, User currentUser) {
-        // Validate question exists
         if (!questionRepository.existsById(questionId)) {
             throw new RuntimeException("Question not found with id: " + questionId);
         }
 
-        // Create new approach from DTO
         ApproachData approach = new ApproachData(questionId, dto.getTextContent());
         approach.setCodeContent(dto.getCodeContent());
         approach.setCodeLanguage(dto.getCodeLanguage() != null ? dto.getCodeLanguage() : "java");
         approach.setStatus(dto.getStatus() != null ? dto.getStatus() : UserApproaches.ApproachStatus.ACCEPTED);
-        
+
         if (dto.getRuntime() != null) approach.setRuntime(dto.getRuntime());
         if (dto.getMemory() != null) approach.setMemory(dto.getMemory());
-        
-        // Convert DTO testcase failures to model
+
         if (dto.getWrongTestcase() != null) {
             approach.setWrongTestcase(new ApproachData.TestcaseFailure(
-                dto.getWrongTestcase().getInput(),
-                dto.getWrongTestcase().getUserOutput(),
-                dto.getWrongTestcase().getExpectedOutput()
-            ));
+                    dto.getWrongTestcase().getInput(),
+                    dto.getWrongTestcase().getUserOutput(),
+                    dto.getWrongTestcase().getExpectedOutput()));
         }
-        
+
         if (dto.getTleTestcase() != null) {
             approach.setTleTestcase(new ApproachData.TestcaseFailure(
-                dto.getTleTestcase().getInput(),
-                dto.getTleTestcase().getUserOutput(),
-                dto.getTleTestcase().getExpectedOutput()
-            ));
+                    dto.getTleTestcase().getInput(),
+                    dto.getTleTestcase().getUserOutput(),
+                    dto.getTleTestcase().getExpectedOutput()));
         }
-        
+
         approach.updateContentSize();
 
-        // Check size limit
         Query query = new Query(Criteria.where("userId").is(userId));
         UserApproaches userApproaches = mongoTemplate.findOne(query, UserApproaches.class);
-        
+
         if (userApproaches != null) {
             int currentSize = userApproaches.getTotalSizeForQuestion(questionId);
             int newTotal = currentSize + approach.getContentSize();
-            
+
             if (newTotal > UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES) {
                 double remainingKB = (UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES - currentSize) / 1024.0;
                 double attemptedKB = approach.getContentSize() / 1024.0;
                 throw new RuntimeException(
-                    String.format("Combined size limit exceeded! You have %.2f KB remaining for this question, " +
-                            "but this approach is %.2f KB. Total limit is 20 KB across all approaches.",
-                            remainingKB, attemptedKB));
+                        String.format("Combined size limit exceeded! You have %.2f KB remaining for this question, " +
+                                "but this approach is %.2f KB. Total limit is 20 KB across all approaches.",
+                                remainingKB, attemptedKB));
             }
         }
 
-        // ✅ ATOMIC: Add approach using $push
+        String approachPath = "approaches." + questionId + "." + approach.getId();
+
         Update update = new Update()
-            .setOnInsert("userId", userId)
-            .setOnInsert("userName", currentUser.getName())
-            .push("approaches." + questionId, approach)
-            .inc("totalApproaches", 1)
-            .set("lastUpdated", LocalDateTime.now());
+                .setOnInsert("userId", userId)
+                .setOnInsert("userName", currentUser.getName())
+                .set(approachPath, approach)
+                .inc("totalApproaches", 1)
+                .set("lastUpdated", LocalDateTime.now());
 
         mongoTemplate.upsert(query, update, UserApproaches.class);
 
-        logger.info("✅ User {} added approach to question {}", userId, questionId);
-        
         return new ApproachDetailDTO(approach, userId, currentUser.getName());
     }
 
     /**
-     * ✅ Update approach text only - ATOMIC OPERATION (FIXED)
+     * ✅ Update approach text - ATOMIC with Map-of-Maps
      */
-    public ApproachDetailDTO updateApproach(String userId, String questionId, String approachId, 
+    public ApproachDetailDTO updateApproach(String userId, String questionId, String approachId,
                                            ApproachUpdateDTO dto) {
-        // Find the approach first
         Query findQuery = new Query(Criteria.where("userId").is(userId));
         UserApproaches userApproaches = mongoTemplate.findOne(findQuery, UserApproaches.class);
 
@@ -200,68 +193,49 @@ public class ApproachService {
             throw new RuntimeException("Approach does not belong to this question");
         }
 
-        // Find the index of the approach in the list
-        List<ApproachData> questionApproaches = userApproaches.getApproachesForQuestion(questionId);
-        int approachIndex = -1;
-        for (int i = 0; i < questionApproaches.size(); i++) {
-            if (questionApproaches.get(i).getId().equals(approachId)) {
-                approachIndex = i;
-                break;
-            }
-        }
-
-        if (approachIndex == -1) {
-            throw new RuntimeException("Approach index not found");
-        }
-
         int oldSize = approach.getContentSize();
-        
-        // Calculate new size
+
         ApproachData tempApproach = new ApproachData();
         tempApproach.setTextContent(dto.getTextContent());
         tempApproach.setCodeContent(approach.getCodeContent());
         int newSize = tempApproach.calculateContentSize();
 
-        // Check size limit
         int currentTotal = userApproaches.getTotalSizeForQuestion(questionId);
         int adjustedTotal = currentTotal - oldSize + newSize;
 
         if (adjustedTotal > UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES) {
             double remainingKB = (UserApproaches.MAX_COMBINED_SIZE_PER_QUESTION_BYTES - (currentTotal - oldSize)) / 1024.0;
             throw new RuntimeException(
-                String.format("Update would exceed 20 KB combined limit! You have %.2f KB remaining for this question.",
-                        remainingKB));
+                    String.format("Update would exceed 20 KB combined limit! You have %.2f KB remaining for this question.",
+                            remainingKB));
         }
 
-        // ✅ FIXED: Update using array index notation
         Query query = new Query(Criteria.where("userId").is(userId));
-        
+
+        String textPath = "approaches." + questionId + "." + approachId + ".textContent";
+        String sizePath = "approaches." + questionId + "." + approachId + ".contentSize";
+        String updatedPath = "approaches." + questionId + "." + approachId + ".updatedAt";
+
         Update update = new Update()
-            .set("approaches." + questionId + "." + approachIndex + ".textContent", dto.getTextContent())
-            .set("approaches." + questionId + "." + approachIndex + ".contentSize", newSize)
-            .set("approaches." + questionId + "." + approachIndex + ".updatedAt", LocalDateTime.now())
-            .set("lastUpdated", LocalDateTime.now());
+                .set(textPath, dto.getTextContent())
+                .set(sizePath, newSize)
+                .set(updatedPath, LocalDateTime.now())
+                .set("lastUpdated", LocalDateTime.now());
 
-        com.mongodb.client.result.UpdateResult result = mongoTemplate.updateFirst(query, update, UserApproaches.class);
-        
-        logger.info("✅ Update operation result: matched={}, modified={}", 
-            result.getMatchedCount(), result.getModifiedCount());
-        logger.info("✅ User {} updated approach {}", userId, approachId);
+        mongoTemplate.updateFirst(query, update, UserApproaches.class);
 
-        // Return updated approach
         approach.setTextContent(dto.getTextContent());
         approach.setContentSize(newSize);
         approach.setUpdatedAt(LocalDateTime.now());
-        
+
         return new ApproachDetailDTO(approach, userId, userApproaches.getUserName());
     }
 
     /**
-     * ✅ Analyze complexity (one-time write) - ATOMIC OPERATION (FIXED)
+     * ✅ Analyze complexity - ATOMIC with Map-of-Maps
      */
-    public ApproachDetailDTO analyzeComplexity(String userId, String questionId, String approachId, 
+    public ApproachDetailDTO analyzeComplexity(String userId, String questionId, String approachId,
                                                ComplexityAnalysisDTO complexityDTO) {
-        // Find approach first
         Query findQuery = new Query(Criteria.where("userId").is(userId));
         UserApproaches userApproaches = mongoTemplate.findOne(findQuery, UserApproaches.class);
 
@@ -274,63 +248,41 @@ public class ApproachService {
             throw new RuntimeException("Approach not found with id: " + approachId);
         }
 
-        // Validate: Only ACCEPTED approaches
         if (approach.getStatus() != UserApproaches.ApproachStatus.ACCEPTED) {
             throw new RuntimeException("Complexity analysis can only be added to ACCEPTED approaches");
         }
 
-        // Validate: Only if complexity is null (one-time write)
         if (approach.getComplexityAnalysis() != null) {
             throw new RuntimeException("Complexity analysis already exists and cannot be modified");
         }
 
-        // Find the index
-        List<ApproachData> questionApproaches = userApproaches.getApproachesForQuestion(questionId);
-        int approachIndex = -1;
-        for (int i = 0; i < questionApproaches.size(); i++) {
-            if (questionApproaches.get(i).getId().equals(approachId)) {
-                approachIndex = i;
-                break;
-            }
-        }
-
-        if (approachIndex == -1) {
-            throw new RuntimeException("Approach index not found");
-        }
-
-        // Convert DTO to model
         ApproachData.ComplexityAnalysis complexity = new ApproachData.ComplexityAnalysis(
-            complexityDTO.getTimeComplexity(),
-            complexityDTO.getSpaceComplexity(),
-            complexityDTO.getComplexityDescription()
-        );
+                complexityDTO.getTimeComplexity(),
+                complexityDTO.getSpaceComplexity(),
+                complexityDTO.getComplexityDescription());
 
-        // ✅ FIXED: Update using array index notation
         Query query = new Query(Criteria.where("userId").is(userId));
-        
+
+        String complexityPath = "approaches." + questionId + "." + approachId + ".complexityAnalysis";
+        String updatedPath = "approaches." + questionId + "." + approachId + ".updatedAt";
+
         Update update = new Update()
-            .set("approaches." + questionId + "." + approachIndex + ".complexityAnalysis", complexity)
-            .set("approaches." + questionId + "." + approachIndex + ".updatedAt", LocalDateTime.now())
-            .set("lastUpdated", LocalDateTime.now());
+                .set(complexityPath, complexity)
+                .set(updatedPath, LocalDateTime.now())
+                .set("lastUpdated", LocalDateTime.now());
 
-        com.mongodb.client.result.UpdateResult result = mongoTemplate.updateFirst(query, update, UserApproaches.class);
-        
-        logger.info("✅ Complexity update result: matched={}, modified={}", 
-            result.getMatchedCount(), result.getModifiedCount());
-        logger.info("✅ User {} added complexity analysis to approach {}", userId, approachId);
+        mongoTemplate.updateFirst(query, update, UserApproaches.class);
 
-        // Return updated approach
         approach.setComplexityAnalysis(complexity);
         approach.setUpdatedAt(LocalDateTime.now());
-        
+
         return new ApproachDetailDTO(approach, userId, userApproaches.getUserName());
     }
 
     /**
-     * ✅ Delete single approach - ATOMIC OPERATION
+     * ✅ Delete single approach - ATOMIC with Map-of-Maps
      */
     public void deleteApproach(String userId, String questionId, String approachId) {
-        // Validate approach exists
         Query findQuery = new Query(Criteria.where("userId").is(userId));
         UserApproaches userApproaches = mongoTemplate.findOne(findQuery, UserApproaches.class);
 
@@ -347,38 +299,39 @@ public class ApproachService {
             throw new RuntimeException("Approach does not belong to this question");
         }
 
-        // ✅ Using $pull with Document
         Query query = new Query(Criteria.where("userId").is(userId));
-        
-        org.bson.Document pullQuery = new org.bson.Document("id", approachId);
-        
-        Update update = new Update()
-            .pull("approaches." + questionId, pullQuery)
-            .inc("totalApproaches", -1)
-            .set("lastUpdated", LocalDateTime.now());
+        String approachPath = "approaches." + questionId + "." + approachId;
 
-        com.mongodb.client.result.UpdateResult result = mongoTemplate.updateFirst(query, update, UserApproaches.class);
-        
-        logger.info("✅ Delete operation result: matched={}, modified={}", 
-            result.getMatchedCount(), result.getModifiedCount());
-        logger.info("✅ User {} deleted approach {} from question {}", userId, approachId, questionId);
+        Update update = new Update()
+                .unset(approachPath)
+                .inc("totalApproaches", -1)
+                .set("lastUpdated", LocalDateTime.now());
+
+        mongoTemplate.updateFirst(query, update, UserApproaches.class);
+
+        // Verify deletion
+        UserApproaches afterDelete = mongoTemplate.findOne(findQuery, UserApproaches.class);
+        ApproachData stillExists = afterDelete != null ? afterDelete.findApproachById(approachId) : null;
+
+        if (stillExists != null) {
+            logger.error("❌ CRITICAL: Approach {} still exists after delete operation!", approachId);
+            throw new RuntimeException("Delete operation failed!");
+        }
     }
 
     /**
      * ✅ Delete all approaches for a question (Admin) - ATOMIC OPERATION
      */
     public void deleteAllApproachesForQuestion(String questionId) {
-        // Find all users who have approaches for this question
         Query query = new Query(Criteria.where("approaches." + questionId).exists(true));
-        
-        // ✅ ATOMIC: Remove question's approaches from all users
+
         Update update = new Update()
-            .unset("approaches." + questionId)
-            .set("lastUpdated", LocalDateTime.now());
+                .unset("approaches." + questionId)
+                .set("lastUpdated", LocalDateTime.now());
 
-        com.mongodb.client.result.UpdateResult result = mongoTemplate.updateMulti(query, update, UserApproaches.class);
+        mongoTemplate.updateMulti(query, update, UserApproaches.class);
 
-        // Update totalApproaches count for affected users
+        // Fix totalApproaches count for affected users
         List<UserApproaches> affectedUsers = userApproachesRepository.findAll();
         for (UserApproaches user : affectedUsers) {
             int actualTotal = user.getAllApproachesFlat().size();
@@ -388,8 +341,6 @@ public class ApproachService {
                 mongoTemplate.updateFirst(userQuery, countUpdate, UserApproaches.class);
             }
         }
-
-        logger.info("✅ Deleted all approaches for question {} from {} users", questionId, result.getModifiedCount());
     }
 
     /**
@@ -405,14 +356,11 @@ public class ApproachService {
 
         int approachCount = userApproaches.getApproachCountForQuestion(questionId);
 
-        // ✅ ATOMIC: Remove question approaches
         Update update = new Update()
-            .unset("approaches." + questionId)
-            .inc("totalApproaches", -approachCount)
-            .set("lastUpdated", LocalDateTime.now());
+                .unset("approaches." + questionId)
+                .inc("totalApproaches", -approachCount)
+                .set("lastUpdated", LocalDateTime.now());
 
         mongoTemplate.updateFirst(query, update, UserApproaches.class);
-
-        logger.info("✅ Deleted {} approaches for question {} from user {}", approachCount, questionId, userId);
     }
 }

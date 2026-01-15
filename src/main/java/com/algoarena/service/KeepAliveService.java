@@ -9,8 +9,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+// import java.time.LocalDateTime;
+// import java.time.format.DateTimeFormatter;
 
 @Service
 public class KeepAliveService {
@@ -48,9 +48,9 @@ public class KeepAliveService {
         
         try {
             String statusUrl = renderUrl + "/api/status";  // CHANGED: /status instead of /health
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            // String timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
             
-            logger.info("Sending keep-alive ping at {} to: {}", timestamp, statusUrl);
+            // logger.info("Sending keep-alive ping at {} to: {}", timestamp, statusUrl);
             
             String response = restTemplate.getForObject(statusUrl, String.class);
             
@@ -68,8 +68,8 @@ public class KeepAliveService {
     @Scheduled(initialDelay = 30000, fixedRate = Long.MAX_VALUE) // Run once after 30 seconds
     public void logKeepAliveStatus() {
         if (keepAliveEnabled && renderUrl != null && !renderUrl.isEmpty()) {
-            logger.info("Keep-Alive Service ACTIVE - App will stay awake on Render!");
-            logger.info("Target URL: {}/api/status", renderUrl);  // CHANGED: /status instead of /health
+            // logger.info("Keep-Alive Service ACTIVE - App will stay awake on Render!");
+            // logger.info("Target URL: {}/api/status", renderUrl);  // CHANGED: /status instead of /health
             logger.info("Ping interval: Every 14 minutes");
         } else {
             logger.info("Keep-Alive Service DISABLED or URL not configured");

@@ -2,7 +2,6 @@
 package com.algoarena.controller.admin;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import com.algoarena.dto.admin.AdminOverviewDTO;
@@ -183,7 +182,7 @@ public class AdminController {
     }
 
     /**
-     * Get UserApproaches document size - CORRECTED
+     * Get UserApproaches document size - UPDATED FOR MAP-OF-MAPS
      * GET /api/admin/users/{userId}/approaches/size
      */
     @GetMapping("/users/{userId}/approaches/size")
@@ -200,20 +199,20 @@ public class AdminController {
                 return ResponseEntity.status(404).body(errorResponse);
             }
 
-            // ✅ Calculate REAL size by getting all content
+            // ✅ Calculate REAL size by getting all content (UPDATED FOR MAP-OF-MAPS)
             int totalContentSize = 0;
             int questionsWithApproaches = 0;
 
             Map<String, Integer> sizePerQuestion = new HashMap<>();
 
-            // Iterate through all questions and calculate their sizes
-            for (Map.Entry<String, List<UserApproaches.ApproachData>> entry : userApproaches.getApproaches()
+            // ✅ UPDATED: Iterate through Map<String, Map<String, ApproachData>>
+            for (Map.Entry<String, Map<String, UserApproaches.ApproachData>> entry : userApproaches.getApproaches()
                     .entrySet()) {
                 String questionId = entry.getKey();
-                List<UserApproaches.ApproachData> approaches = entry.getValue();
+                Map<String, UserApproaches.ApproachData> approachesMap = entry.getValue();
 
                 int questionSize = 0;
-                for (UserApproaches.ApproachData approach : approaches) {
+                for (UserApproaches.ApproachData approach : approachesMap.values()) {
                     questionSize += approach.getContentSize();
                 }
 

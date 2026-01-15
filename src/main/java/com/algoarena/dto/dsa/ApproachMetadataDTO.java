@@ -35,10 +35,12 @@ public class ApproachMetadataDTO {
         this.runtime = data.getRuntime();
         this.memory = data.getMemory();
         
+        // ✅ FIXED: Include complexityDescription
         if (data.getComplexityAnalysis() != null) {
             this.complexityAnalysis = new ComplexityAnalysisDTO(
                 data.getComplexityAnalysis().getTimeComplexity(),
-                data.getComplexityAnalysis().getSpaceComplexity()
+                data.getComplexityAnalysis().getSpaceComplexity(),
+                data.getComplexityAnalysis().getComplexityDescription()  // ✅ Added this!
             );
         }
         
@@ -153,4 +155,3 @@ public class ApproachMetadataDTO {
         this.updatedAt = updatedAt;
     }
 }
- 

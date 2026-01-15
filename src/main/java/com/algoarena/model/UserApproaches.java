@@ -20,14 +20,14 @@ public class UserApproaches {
     @Id
     private String id;
 
-    // ✅ Removed @Version - using atomic operations now
-
     @Indexed
     private String userId;
 
     private String userName;
 
-    private Map<String, List<ApproachData>> approaches = new HashMap<>();
+    // ✅ CHANGED: Map<String, Map<String, ApproachData>>
+    // Structure: questionId -> (approachId -> ApproachData)
+    private Map<String, Map<String, ApproachData>> approaches = new HashMap<>();
 
     private int totalApproaches = 0;
     private LocalDateTime lastUpdated;
@@ -53,16 +53,16 @@ public class UserApproaches {
         private String id;
         private String questionId;
 
-        private String textContent; // Editable
-        private String codeContent; // Read-only after creation
-        private String codeLanguage; // Read-only after creation
+        private String textContent;
+        private String codeContent;
+        private String codeLanguage;
 
-        private ApproachStatus status; // Read-only after creation
-        private Long runtime; // Read-only after creation
-        private Long memory; // Read-only after creation
-        private ComplexityAnalysis complexityAnalysis; // Writable ONLY if null (one-time write)
-        private TestcaseFailure wrongTestcase; // Read-only after creation
-        private TestcaseFailure tleTestcase; // Read-only after creation
+        private ApproachStatus status;
+        private Long runtime;
+        private Long memory;
+        private ComplexityAnalysis complexityAnalysis;
+        private TestcaseFailure wrongTestcase;
+        private TestcaseFailure tleTestcase;
 
         private int contentSize;
 
@@ -74,7 +74,7 @@ public class UserApproaches {
             this.createdAt = LocalDateTime.now();
             this.updatedAt = LocalDateTime.now();
             this.codeLanguage = "java";
-            this.status = ApproachStatus.ACCEPTED; // Default
+            this.status = ApproachStatus.ACCEPTED;
         }
 
         public ApproachData(String questionId, String textContent) {
@@ -309,40 +309,43 @@ public class UserApproaches {
         }
     }
 
-    // Helper methods for atomic operations
+    // ✅ UPDATED: Helper methods for Map-of-Maps structure
     public int getTotalSizeForQuestion(String questionId) {
-        List<ApproachData> questionApproaches = approaches.get(questionId);
+        Map<String, ApproachData> questionApproaches = approaches.get(questionId);
         if (questionApproaches == null) {
             return 0;
         }
-        return questionApproaches.stream()
+        return questionApproaches.values().stream()
                 .mapToInt(ApproachData::getContentSize)
                 .sum();
     }
 
     public ApproachData findApproachById(String approachId) {
-        for (List<ApproachData> questionApproaches : approaches.values()) {
-            for (ApproachData approach : questionApproaches) {
-                if (approach.getId().equals(approachId)) {
-                    return approach;
-                }
+        for (Map<String, ApproachData> questionApproaches : approaches.values()) {
+            if (questionApproaches.containsKey(approachId)) {
+                return questionApproaches.get(approachId);
             }
         }
         return null;
     }
 
     public List<ApproachData> getApproachesForQuestion(String questionId) {
-        return approaches.getOrDefault(questionId, new ArrayList<>());
+        Map<String, ApproachData> questionApproaches = approaches.get(questionId);
+        if (questionApproaches == null) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(questionApproaches.values());
     }
 
     public int getApproachCountForQuestion(String questionId) {
-        return approaches.getOrDefault(questionId, new ArrayList<>()).size();
+        Map<String, ApproachData> questionApproaches = approaches.get(questionId);
+        return questionApproaches == null ? 0 : questionApproaches.size();
     }
 
     public List<ApproachData> getAllApproachesFlat() {
         List<ApproachData> allApproaches = new ArrayList<>();
-        for (List<ApproachData> questionApproaches : approaches.values()) {
-            allApproaches.addAll(questionApproaches);
+        for (Map<String, ApproachData> questionApproaches : approaches.values()) {
+            allApproaches.addAll(questionApproaches.values());
         }
         allApproaches.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
         return allApproaches;
@@ -375,11 +378,11 @@ public class UserApproaches {
         this.userName = userName;
     }
 
-    public Map<String, List<ApproachData>> getApproaches() {
+    public Map<String, Map<String, ApproachData>> getApproaches() {
         return approaches;
     }
 
-    public void setApproaches(Map<String, List<ApproachData>> approaches) {
+    public void setApproaches(Map<String, Map<String, ApproachData>> approaches) {
         this.approaches = approaches;
     }
 

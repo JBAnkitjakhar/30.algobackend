@@ -40,19 +40,19 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         String requestURI = request.getRequestURI();
         String method = request.getMethod();
 
-        logger.info("🔍 Rate limit check - Method: {}, URI: {}, User: {}", method, requestURI, userId);
+        // logger.info("🔍 Rate limit check - Method: {}, URI: {}, User: {}", method, requestURI, userId);
 
         Bucket bucket = determineBucket(userId, requestURI, method);
 
         if (bucket == null) {
-            logger.info("✅ No rate limit applied for: {}", requestURI);
+            // logger.info("✅ No rate limit applied for: {}", requestURI);
             return true;
         }
 
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
         if (probe.isConsumed()) {
-            logger.info("✅ Request allowed. Remaining tokens: {}", probe.getRemainingTokens());
+            // logger.info("✅ Request allowed. Remaining tokens: {}", probe.getRemainingTokens());
             response.addHeader("X-Rate-Limit-Remaining", String.valueOf(probe.getRemainingTokens()));
             return true;
         } else {

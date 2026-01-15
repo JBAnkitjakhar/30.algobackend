@@ -24,9 +24,9 @@ public class AuthService {
     public User processOAuth2User(OAuth2User oAuth2User, String registrationId) {
         Map<String, Object> attributes = oAuth2User.getAttributes();
 
-        logger.info("=== Processing OAuth2 User ===");
-        logger.info("Provider: {}", registrationId);
-        logger.info("Attributes: {}", attributes);
+        // logger.info("=== Processing OAuth2 User ===");
+        // logger.info("Provider: {}", registrationId);
+        // logger.info("Attributes: {}", attributes);
 
         String providerId = extractProviderId(attributes, registrationId);
         String email = extractEmail(attributes, registrationId);
@@ -34,8 +34,8 @@ public class AuthService {
         String name = extractName(attributes, registrationId);
         String image = extractImage(attributes, registrationId);
 
-        logger.info("Extracted - ProviderId: {}, Email: {}, Username: {}, Name: {}",
-                providerId, email, username, name);
+        // logger.info("Extracted - ProviderId: {}, Email: {}, Username: {}, Name: {}",
+        //         providerId, email, username, name);
 
         // Validate that we have at least providerId
         if (providerId == null || providerId.trim().isEmpty()) {
@@ -46,10 +46,10 @@ public class AuthService {
         User existingUser = findExistingUserByProviderId(registrationId, providerId);
 
         if (existingUser != null) {
-            logger.info("User exists (ID: {}), updating info", existingUser.getId());
+            // logger.info("User exists (ID: {}), updating info", existingUser.getId());
             return updateExistingUser(existingUser, email, name, image, username, providerId, registrationId);
         } else {
-            logger.info("Creating new user for provider: {}", registrationId);
+            // logger.info("Creating new user for provider: {}", registrationId);
             return createNewUser(email, name, image, username, providerId, registrationId);
         }
     }
@@ -81,7 +81,7 @@ public class AuthService {
             if (user.getEmail() == null || !email.equals(user.getEmail())) {
                 user.setEmail(email);
                 updated = true;
-                logger.info("Updated email to: {}", email);
+                // logger.info("Updated email to: {}", email);
             }
         }
 
@@ -117,11 +117,11 @@ public class AuthService {
 
         if (updated) {
             user.setUpdatedAt(LocalDateTime.now());
-            logger.info("Saving updated user: {}", user.getId());
+            // logger.info("Saving updated user: {}", user.getId());
             return userRepository.save(user);
         }
 
-        logger.info("No updates needed for user: {}", user.getId());
+        // logger.info("No updates needed for user: {}", user.getId());
         return user;
     }
 
@@ -132,7 +132,7 @@ public class AuthService {
         // Email is optional - only set if available
         if (email != null && !email.trim().isEmpty()) {
             newUser.setEmail(email);
-            logger.info("Setting email: {}", email);
+            // logger.info("Setting email: {}", email);
         } else {
             logger.info("No email available (private), will use username for identification");
         }
@@ -154,7 +154,7 @@ public class AuthService {
         } else if ("github".equals(registrationId)) {
             newUser.setGithubId(providerId);
             newUser.setGithubUsername(username); // Always store GitHub username
-            logger.info("Storing GitHub username: {}", username);
+            // logger.info("Storing GitHub username: {}", username);
         }
 
         // Set role - check if this is the first user (make them superadmin)
@@ -163,8 +163,8 @@ public class AuthService {
         // Set initial login time
         newUser.setLastLogin(LocalDateTime.now());
 
-        logger.info("Creating new user - Name: {}, Email: {}, Username: {}",
-                newUser.getName(), newUser.getEmail(), newUser.getGithubUsername());
+        // logger.info("Creating new user - Name: {}, Email: {}, Username: {}",
+        //         newUser.getName(), newUser.getEmail(), newUser.getGithubUsername());
 
         return userRepository.save(newUser);
     }

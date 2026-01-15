@@ -5,8 +5,8 @@ import com.algoarena.dto.user.UserMeStatsDTO;
 import com.algoarena.dto.user.QuestionSolveStatusDTO;
 import com.algoarena.exception.*;
 import com.algoarena.repository.QuestionRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+// import org.slf4j.Logger;
+// import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -24,7 +24,7 @@ import java.util.List;
 @Service
 public class UserProgressService {
 
-    private static final Logger logger = LoggerFactory.getLogger(UserProgressService.class);
+    // private static final Logger logger = LoggerFactory.getLogger(UserProgressService.class);
 
     @Autowired
     private MongoTemplate mongoTemplate;
@@ -114,7 +114,7 @@ public class UserProgressService {
             .set("solvedQuestions." + questionId, LocalDateTime.now());
         
         mongoTemplate.upsert(query, update, UserProgress.class);
-        logger.info("✅ User {} marked question {} as solved", userId, questionId);
+        // logger.info("✅ User {} marked question {} as solved", userId, questionId);
     }
 
     /**
@@ -136,7 +136,7 @@ public class UserProgressService {
         Update update = new Update().unset("solvedQuestions." + questionId);
         mongoTemplate.updateFirst(query, update, UserProgress.class);
         
-        logger.info("✅ User {} unmarked question {}", userId, questionId);
+        // logger.info("✅ User {} unmarked question {}", userId, questionId);
     }
 
     /**
@@ -154,7 +154,7 @@ public class UserProgressService {
         );
 
         int removedCount = (int) result.getModifiedCount();
-        logger.info("Removed question {} from {} users", questionId, removedCount);
+        // logger.info("Removed question {} from {} users", questionId, removedCount);
         return removedCount;
     }
 
@@ -169,7 +169,7 @@ public class UserProgressService {
             totalRemoved += removeQuestionFromAllUsers(questionId);
         }
 
-        logger.info("Removed {} question entries from all users", totalRemoved);
+        // logger.info("Removed {} question entries from all users", totalRemoved);
         return totalRemoved;
     }
 }
