@@ -40,6 +40,9 @@ public class ApproachService {
     @Autowired
     private QuestionRepository questionRepository;
 
+    @Autowired
+    private SubmissionTrackingService submissionTrackingService;
+
     /**
      * Get all approaches metadata for a question (list view - no full content)
      */
@@ -114,6 +117,7 @@ public class ApproachService {
 
     /**
      * ✅ Create new approach - ATOMIC with Map-of-Maps
+     * ⭐ Now includes submission tracking for heatmap
      */
     public ApproachDetailDTO createApproach(String userId, String questionId, ApproachDetailDTO dto, User currentUser) {
         if (!questionRepository.existsById(questionId)) {
@@ -173,6 +177,14 @@ public class ApproachService {
                 .set("lastUpdated", LocalDateTime.now());
 
         mongoTemplate.upsert(query, update, UserApproaches.class);
+
+        // ⭐ Record submission for heatmap tracking (non-blocking means if it fails, approach is still created)
+        try {
+            submissionTrackingService.recordSubmission(userId);
+        } catch (Exception e) {
+            logger.error("Failed to record submission for user {}: {}", userId, e.getMessage());
+            // Don't throw - approach was created successfully
+        }
 
         return new ApproachDetailDTO(approach, userId, currentUser.getName());
     }

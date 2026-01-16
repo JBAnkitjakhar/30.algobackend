@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
@@ -94,7 +95,7 @@ public class ComplexityAnalysisService {
         // Generation config for minimal output
         Map<String, Object> generationConfig = new HashMap<>();
         generationConfig.put("temperature", 0.1);
-        generationConfig.put("maxOutputTokens", 150); // Changed from 100 to 150
+        generationConfig.put("maxOutputTokens", 150);
         requestBody.put("generationConfig", generationConfig);
 
         return requestBody;
@@ -124,6 +125,21 @@ public class ComplexityAnalysisService {
                 throw new RuntimeException("Gemini API returned status: " + response.getStatusCode());
             }
 
+        } catch (HttpClientErrorException e) {
+            // ⭐ Enhanced error handling for different HTTP error codes
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                log.error("Rate limit exceeded (429). Current limit: 10 requests per minute");
+                throw new RuntimeException("Rate limit exceeded. Please try again in a minute. (Limit: 10 requests/min)");
+            } else if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+                log.error("Invalid API key (401)");
+                throw new RuntimeException("Invalid API configuration. Please contact support.");
+            } else if (e.getStatusCode() == HttpStatus.BAD_REQUEST) {
+                log.error("Bad request (400): {}", e.getResponseBodyAsString());
+                throw new RuntimeException("Invalid request format. Please check your code and try again.");
+            } else {
+                log.error("Gemini API error ({}): {}", e.getStatusCode(), e.getMessage());
+                throw new RuntimeException("API request failed: " + e.getStatusCode());
+            }
         } catch (Exception e) {
             log.error("Error calling Gemini API: {}", e.getMessage());
             throw new RuntimeException("Failed to call Gemini API: " + e.getMessage());
