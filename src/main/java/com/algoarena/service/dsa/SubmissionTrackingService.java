@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 
 @Service
 public class SubmissionTrackingService {
@@ -26,9 +27,11 @@ public class SubmissionTrackingService {
     /**
      * Thread-safe submission tracking using MongoDB atomic operations
      * Handles concurrent submissions from multiple tabs/devices
+     * ⭐ Uses UTC date for consistency across all servers
      */
     public void recordSubmission(String userId) {
-        LocalDate today = LocalDate.now();
+        // ⭐ CHANGED: Use UTC date instead of server's local timezone
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
 
         // Try to increment today's count (if today already exists)
         Query query = new Query(Criteria.where("userId").is(userId)
