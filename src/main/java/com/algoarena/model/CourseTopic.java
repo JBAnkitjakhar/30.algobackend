@@ -7,6 +7,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.Indexed;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Document(collection = "course_topics")
 public class CourseTopic {
@@ -21,24 +23,26 @@ public class CourseTopic {
     private Integer displayOrder;
     private String iconUrl;
     
-    // NEW: Public/Private functionality
-    private Boolean isPublic = true; // Default public
+    private Boolean isPublic = true;
     
-    // CHANGED: Direct creator info (no DBRef)
+    // ✅ NEW: YouTube video links (max 50)
+    private List<String> videoLinks = new ArrayList<>();
+    private static final int MAX_VIDEO_LINKS = 50;
+    
     private String createdById;
     private String createdByName;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     
-    @Version // For optimistic locking
+    @Version
     private Long version;
 
-    // Constructors
     public CourseTopic() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         this.isPublic = true;
+        this.videoLinks = new ArrayList<>();
     }
 
     public CourseTopic(String name, String description, User createdBy) {
@@ -105,6 +109,19 @@ public class CourseTopic {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public List<String> getVideoLinks() {
+        return videoLinks;
+    }
+
+    public void setVideoLinks(List<String> videoLinks) {
+        this.videoLinks = videoLinks;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public static int getMaxVideoLinks() {
+        return MAX_VIDEO_LINKS;
+    }
+
     public String getCreatedById() {
         return createdById;
     }
@@ -152,6 +169,7 @@ public class CourseTopic {
                 ", name='" + name + '\'' +
                 ", isPublic=" + isPublic +
                 ", displayOrder=" + displayOrder +
+                ", videoLinksCount=" + (videoLinks != null ? videoLinks.size() : 0) +
                 '}';
     }
 }

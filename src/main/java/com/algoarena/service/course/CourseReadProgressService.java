@@ -4,8 +4,6 @@ package com.algoarena.service.course;
 import com.algoarena.dto.course.CourseReadStatsDTO;
 import com.algoarena.model.CourseReadProgress;
 import com.algoarena.repository.CourseDocRepository;
-// import org.slf4j.Logger;
-// import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -17,11 +15,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 
 @Service
 public class CourseReadProgressService {
-
-    // private static final Logger logger = LoggerFactory.getLogger(CourseReadProgressService.class);
 
     @Autowired
     private MongoTemplate mongoTemplate;
@@ -29,9 +26,6 @@ public class CourseReadProgressService {
     @Autowired
     private CourseDocRepository docRepository;
 
-    /**
-     * Get user's read statistics
-     */
     @Cacheable(value = "courseReadStats", key = "#userId")
     public CourseReadStatsDTO getUserReadStats(String userId) {
         Query query = new Query(Criteria.where("userId").is(userId));
@@ -46,39 +40,61 @@ public class CourseReadProgressService {
                 progress.getReadDocs());
     }
 
-    /**
-     * Toggle document read/unread status using atomic operations
-     */
     @CacheEvict(value = "courseReadStats", key = "#userId")
     public void toggleDocReadStatus(String userId, String docId) {
         if (docId == null || docId.trim().isEmpty()) {
             throw new IllegalArgumentException("Document ID is required");
         }
 
-        // Verify document exists
         if (!docRepository.existsById(docId)) {
             throw new RuntimeException("Document not found with id: " + docId);
         }
 
-        // Check current status
         Query query = new Query(Criteria.where("userId").is(userId));
         CourseReadProgress progress = mongoTemplate.findOne(query, CourseReadProgress.class);
 
         boolean isCurrentlyRead = progress != null && progress.getReadDocs().containsKey(docId);
 
         if (isCurrentlyRead) {
-            // ✅ UNMARK: Remove from Map atomically
             Update update = new Update().unset("readDocs." + docId);
             mongoTemplate.updateFirst(query, update, CourseReadProgress.class);
-            // logger.info("✅ User {} unmarked doc {} as read", userId, docId);
         } else {
-            // ✅ MARK: Add to Map atomically
             Update update = new Update()
                     .setOnInsert("userId", userId)
                     .set("readDocs." + docId, LocalDateTime.now());
 
             mongoTemplate.upsert(query, update, CourseReadProgress.class);
-            // logger.info("✅ User {} marked doc {} as read", userId, docId);
         }
+    }
+
+    /**
+     * Remove a specific document from ALL users' read progress
+     */
+    @CacheEvict(value = "courseReadStats", allEntries = true)
+    public void removeDocFromAllUsers(String docId) {
+        Query query = new Query(Criteria.where("readDocs." + docId).exists(true));
+        Update update = new Update().unset("readDocs." + docId);
+        
+        mongoTemplate.updateMulti(query, update, CourseReadProgress.class);
+        
+        System.out.println("✓ Removed doc " + docId + " from all users' read progress");
+    }
+
+    /**
+     * Remove multiple documents from ALL users' read progress
+     */
+    @CacheEvict(value = "courseReadStats", allEntries = true)
+    public void removeDocsFromAllUsers(List<String> docIds) {
+        if (docIds == null || docIds.isEmpty()) {
+            return;
+        }
+
+        for (String docId : docIds) {
+            Query query = new Query(Criteria.where("readDocs." + docId).exists(true));
+            Update update = new Update().unset("readDocs." + docId);
+            mongoTemplate.updateMulti(query, update, CourseReadProgress.class);
+        }
+        
+        System.out.println("✓ Removed " + docIds.size() + " docs from all users' read progress");
     }
 }

@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CourseTopicDTO {
 
@@ -20,14 +22,18 @@ public class CourseTopicDTO {
 
     private Integer displayOrder;
     private String iconUrl;
-    private Boolean isPublic; // NEW
+    private Boolean isPublic;
+    
+    // ✅ NEW: Video links
+    private List<String> videoLinks = new ArrayList<>();
+    
     private Long docsCount;
     
     private String createdByName;
     private String createdById;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private Long version; // For optimistic locking
+    private Long version;
 
     public CourseTopicDTO() {}
 
@@ -38,6 +44,7 @@ public class CourseTopicDTO {
         this.displayOrder = topic.getDisplayOrder();
         this.iconUrl = topic.getIconUrl();
         this.isPublic = topic.getIsPublic();
+        this.videoLinks = topic.getVideoLinks() != null ? topic.getVideoLinks() : new ArrayList<>();
         this.createdByName = topic.getCreatedByName();
         this.createdById = topic.getCreatedById();
         this.createdAt = topic.getCreatedAt();
@@ -67,6 +74,9 @@ public class CourseTopicDTO {
 
     public Boolean getIsPublic() { return isPublic; }
     public void setIsPublic(Boolean isPublic) { this.isPublic = isPublic; }
+
+    public List<String> getVideoLinks() { return videoLinks; }
+    public void setVideoLinks(List<String> videoLinks) { this.videoLinks = videoLinks; }
 
     public Long getDocsCount() { return docsCount; }
     public void setDocsCount(Long docsCount) { this.docsCount = docsCount; }

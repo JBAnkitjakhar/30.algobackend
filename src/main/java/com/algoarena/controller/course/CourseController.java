@@ -1,11 +1,7 @@
 // src/main/java/com/algoarena/controller/course/CourseController.java
 package com.algoarena.controller.course;
 
-import com.algoarena.dto.course.CourseDocDTO;
-import com.algoarena.dto.course.CourseReadStatsDTO;
-import com.algoarena.dto.course.CourseTopicDTO;
-import com.algoarena.dto.course.CourseTopicNameDTO;
-import com.algoarena.dto.course.MoveDocRequest;
+import com.algoarena.dto.course.*;
 import com.algoarena.model.User;
 import com.algoarena.service.course.CourseDocService;
 import com.algoarena.service.course.CourseReadProgressService;
@@ -20,6 +16,7 @@ import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/courses")
@@ -33,6 +30,16 @@ public class CourseController {
 
     @Autowired
     private CourseReadProgressService readProgressService;
+
+    // Helper method to check if user is admin
+    private boolean isAdmin(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") ||
+                        a.getAuthority().equals("ROLE_SUPERADMIN"));
+    }
 
     // ==================== PUBLIC ENDPOINTS ====================
 
@@ -64,13 +71,23 @@ public class CourseController {
      * GET /api/courses/topicsnames
      */
     @GetMapping("/topicsnames")
-    public ResponseEntity<Map<String, Object>> getPublicTopicNames() {
+    public ResponseEntity<Map<String, Object>> getPublicTopicNames(Authentication authentication) {
         try {
             List<CourseTopicNameDTO> topicNames = topicService.getPublicTopicNames();
+            boolean isAdmin = isAdmin(authentication);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("data", topicNames);
+
+            if (isAdmin) {
+                response.put("data", topicNames);
+            } else {
+                List<CourseTopicNamePublicDTO> publicData = topicNames.stream()
+                        .map(CourseTopicNamePublicDTO::fromFull)
+                        .collect(Collectors.toList());
+                response.put("data", publicData);
+            }
+
             response.put("count", topicNames.size());
 
             return ResponseEntity.ok(response);
@@ -113,15 +130,28 @@ public class CourseController {
      * GET /api/courses/topics/{topicId}/docs
      */
     @GetMapping("/topics/{topicId}/docs")
-    public ResponseEntity<Map<String, Object>> getDocsByTopic(@PathVariable String topicId) {
+    public ResponseEntity<Map<String, Object>> getDocsByTopic(
+            @PathVariable String topicId,
+            Authentication authentication) {
         try {
             CourseTopicDTO topic = topicService.getTopicById(topicId);
             List<CourseDocDTO> docs = docService.getDocsByTopic(topicId);
+            boolean isAdmin = isAdmin(authentication);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("topic", topic);
-            response.put("docs", docs);
+
+            if (isAdmin) {
+                response.put("topic", topic);
+                response.put("docs", docs);
+            } else {
+                response.put("topic", CourseTopicPublicDTO.fromFull(topic));
+                List<CourseDocPublicDTO> publicDocs = docs.stream()
+                        .map(CourseDocPublicDTO::fromFull)
+                        .collect(Collectors.toList());
+                response.put("docs", publicDocs);
+            }
+
             response.put("count", docs.size());
 
             return ResponseEntity.ok(response);
@@ -145,13 +175,21 @@ public class CourseController {
      * GET /api/courses/docs/{docId}
      */
     @GetMapping("/docs/{docId}")
-    public ResponseEntity<Map<String, Object>> getDocById(@PathVariable String docId) {
+    public ResponseEntity<Map<String, Object>> getDocById(
+            @PathVariable String docId,
+            Authentication authentication) {
         try {
             CourseDocDTO doc = docService.getDocById(docId);
+            boolean isAdmin = isAdmin(authentication);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("data", doc);
+
+            if (isAdmin) {
+                response.put("data", doc);
+            } else {
+                response.put("data", CourseDocDetailPublicDTO.fromFull(doc));
+            }
 
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
@@ -247,8 +285,6 @@ public class CourseController {
     @PutMapping("/topics/{topicId}/visibility")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<Map<String, Object>> toggleTopicVisibility(@PathVariable String topicId) {
-        // System.out.println("🔍 PUT request received for topic: " + topicId); // Add
-        // this
         try {
             CourseTopicDTO updatedTopic = topicService.toggleTopicVisibility(topicId);
 

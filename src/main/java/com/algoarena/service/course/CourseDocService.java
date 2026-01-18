@@ -30,6 +30,9 @@ public class CourseDocService {
     @Autowired
     private CloudinaryService cloudinaryService;
 
+    @Autowired
+    private CourseReadProgressService readProgressService;
+
     private static final long MAX_DOC_SIZE = 5 * 1024 * 1024L; // 5MB
 
     /**
@@ -157,18 +160,22 @@ public class CourseDocService {
                 .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
 
         if (doc.getImageUrls() != null && !doc.getImageUrls().isEmpty()) {
-            // System.out.println("Deleting " + doc.getImageUrls().size() + " images from document: " + doc.getTitle());
+            // System.out.println("Deleting " + doc.getImageUrls().size() + " images from
+            // document: " + doc.getTitle());
 
             for (String imageUrl : doc.getImageUrls()) {
                 try {
                     String publicId = extractPublicIdFromUrl(imageUrl);
                     cloudinaryService.deleteImage(publicId);
-                    // System.out.println("  ✓ Deleted image: " + publicId);
+                    // System.out.println(" ✓ Deleted image: " + publicId);
                 } catch (Exception e) {
                     System.err.println("  ✗ Failed to delete image " + imageUrl + ": " + e.getMessage());
                 }
             }
         }
+
+        // ✅ NEW: Remove from all users' read progress
+        readProgressService.removeDocFromAllUsers(id);
 
         docRepository.delete(doc);
         // System.out.println("✓ Document deleted: " + doc.getTitle());

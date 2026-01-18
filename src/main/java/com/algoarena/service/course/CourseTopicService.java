@@ -15,6 +15,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,6 +30,9 @@ public class CourseTopicService {
 
     @Autowired
     private CloudinaryService cloudinaryService;
+
+    @Autowired
+    private CourseReadProgressService readProgressService;
 
     /**
      * Get single topic by ID
@@ -83,12 +87,16 @@ public class CourseTopicService {
             throw new RuntimeException("Topic with name '" + dto.getName() + "' already exists");
         }
 
+        // ✅ Validate all video links
+        validateVideoLinks(dto.getVideoLinks());
+
         CourseTopic topic = new CourseTopic();
         topic.setName(dto.getName());
         topic.setDescription(dto.getDescription());
         topic.setDisplayOrder(dto.getDisplayOrder());
         topic.setIconUrl(dto.getIconUrl());
         topic.setIsPublic(dto.getIsPublic() != null ? dto.getIsPublic() : true);
+        topic.setVideoLinks(dto.getVideoLinks() != null ? dto.getVideoLinks() : new ArrayList<>());
         topic.setCreatedById(currentUser.getId());
         topic.setCreatedByName(currentUser.getName());
 
@@ -116,11 +124,15 @@ public class CourseTopicService {
             }
         }
 
+        // ✅ Validate all video links
+        validateVideoLinks(dto.getVideoLinks());
+
         topic.setName(dto.getName());
         topic.setDescription(dto.getDescription());
         topic.setDisplayOrder(dto.getDisplayOrder());
         topic.setIconUrl(dto.getIconUrl());
         topic.setIsPublic(dto.getIsPublic() != null ? dto.getIsPublic() : true);
+        topic.setVideoLinks(dto.getVideoLinks() != null ? dto.getVideoLinks() : new ArrayList<>());
 
         CourseTopic updatedTopic = topicRepository.save(topic);
 
@@ -166,6 +178,10 @@ public class CourseTopicService {
 
         List<CourseDoc> docs = docRepository.findByTopicIdOrderByDisplayOrderAsc(id);
 
+        List<String> docIds = docs.stream()
+                .map(CourseDoc::getId)
+                .collect(Collectors.toList());
+
         // System.out.println("Deleting topic '" + topic.getName() + "' with " + docs.size() + " documents");
 
         for (CourseDoc doc : docs) {
@@ -187,8 +203,58 @@ public class CourseTopicService {
             // System.out.println("  ✓ Deleted document: " + doc.getTitle());
         }
 
+        readProgressService.removeDocsFromAllUsers(docIds);
+
         topicRepository.delete(topic);
         // System.out.println("✓ Topic deleted successfully");
+    }
+
+    // ✅ Validate all video links
+    private void validateVideoLinks(List<String> videoLinks) {
+        if (videoLinks == null || videoLinks.isEmpty()) {
+            return;
+        }
+
+        if (videoLinks.size() > CourseTopic.getMaxVideoLinks()) {
+            throw new RuntimeException("Maximum " + CourseTopic.getMaxVideoLinks() + " video links allowed per topic. You provided " + videoLinks.size() + " links");
+        }
+
+        int invalidCount = 0;
+        StringBuilder invalidLinks = new StringBuilder();
+
+        for (int i = 0; i < videoLinks.size(); i++) {
+            String link = videoLinks.get(i);
+            
+            if (link == null || link.trim().isEmpty()) {
+                invalidCount++;
+                invalidLinks.append("\n- Video link ").append(i + 1).append(": Empty link");
+                continue;
+            }
+
+            if (!isValidYouTubeUrl(link.trim())) {
+                invalidCount++;
+                invalidLinks.append("\n- Video link ").append(i + 1).append(": Invalid YouTube URL - ").append(link);
+            }
+        }
+
+        if (invalidCount > 0) {
+            throw new RuntimeException("Found " + invalidCount + " invalid video link(s):" + invalidLinks.toString());
+        }
+    }
+
+    // ✅ Validate YouTube URL format
+    private boolean isValidYouTubeUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+
+        // YouTube URL patterns:
+        // https://www.youtube.com/watch?v=VIDEO_ID
+        // https://youtube.com/watch?v=VIDEO_ID
+        // https://youtu.be/VIDEO_ID
+        // https://www.youtube.com/embed/VIDEO_ID
+        
+        return url.matches("^(https?://)?(www\\.)?(youtube\\.com/(watch\\?v=|embed/)|youtu\\.be/).+$");
     }
 
     private String extractPublicIdFromUrl(String imageUrl) {
