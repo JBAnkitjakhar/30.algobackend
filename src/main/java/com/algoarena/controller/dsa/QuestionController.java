@@ -2,6 +2,7 @@
 package com.algoarena.controller.dsa;
 
 import com.algoarena.dto.dsa.QuestionDTO;
+import com.algoarena.dto.dsa.QuestionPublicDTO;
 import com.algoarena.dto.user.QuestionsMetadataDTO;
 import com.algoarena.model.User;
 import com.algoarena.service.dsa.QuestionService;
@@ -20,6 +21,16 @@ public class QuestionController {
 
     @Autowired
     private QuestionService questionService;
+
+    // Helper method to check if user is admin
+    private boolean isAdmin(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") ||
+                        a.getAuthority().equals("ROLE_SUPERADMIN"));
+    }
 
     // ============================================
     // ADMIN ENDPOINTS
@@ -65,15 +76,24 @@ public class QuestionController {
 
     /**
      * Get complete question details for authenticated users
+     * Admin: Returns full QuestionDTO (with version, displayOrder, creator info, timestamps)
+     * User: Returns QuestionPublicDTO (without version, displayOrder, creator info, timestamps)
      * Rate limited: 30 requests per minute per user
      * Globally cached for all users
      */
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<QuestionDTO> getQuestionById(@PathVariable String id) {
+    public ResponseEntity<?> getQuestionById(
+            @PathVariable String id,
+            Authentication authentication) {
         try {
             QuestionDTO question = questionService.getQuestionById(id);
-            return ResponseEntity.ok(question);
+            
+            if (isAdmin(authentication)) {
+                return ResponseEntity.ok(question);
+            } else {
+                return ResponseEntity.ok(QuestionPublicDTO.fromFull(question));
+            }
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

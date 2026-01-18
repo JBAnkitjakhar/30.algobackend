@@ -2,6 +2,7 @@
 package com.algoarena.controller.dsa;
 
 import com.algoarena.dto.dsa.SolutionDTO;
+import com.algoarena.dto.dsa.SolutionPublicDTO;
 import com.algoarena.model.User;
 import com.algoarena.service.dsa.SolutionService;
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/solutions")
@@ -22,41 +24,78 @@ public class SolutionController {
     @Autowired
     private SolutionService solutionService;
 
-    @GetMapping("/{id}") //  specific solution
-    public ResponseEntity<SolutionDTO> getSolutionById(@PathVariable String id) {
+    // Helper method to check if user is admin
+    private boolean isAdmin(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") ||
+                        a.getAuthority().equals("ROLE_SUPERADMIN"));
+    }
+
+    /**
+     * Get specific solution by ID
+     * Admin: Returns full SolutionDTO (with createdByName, updatedAt)
+     * User: Returns SolutionPublicDTO (without createdByName, updatedAt)
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getSolutionById(
+            @PathVariable String id,
+            Authentication authentication) {
         SolutionDTO solution = solutionService.getSolutionById(id);
         if (solution == null) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(solution);
+        
+        if (isAdmin(authentication)) {
+            return ResponseEntity.ok(solution);
+        } else {
+            return ResponseEntity.ok(SolutionPublicDTO.fromFull(solution));
+        }
     }
- 
-    @GetMapping("/question/{questionId}")  // all solutions belong to that question id
-    public ResponseEntity<List<SolutionDTO>> getSolutionsByQuestion(@PathVariable String questionId) {
+
+    /**
+     * Get all solutions for a question
+     * Admin: Returns full SolutionDTO list (with createdByName, updatedAt)
+     * User: Returns SolutionPublicDTO list (without createdByName, updatedAt)
+     */
+    @GetMapping("/question/{questionId}")
+    public ResponseEntity<?> getSolutionsByQuestion(
+            @PathVariable String questionId,
+            Authentication authentication) {
         List<SolutionDTO> solutions = solutionService.getSolutionsByQuestion(questionId);
-        return ResponseEntity.ok(solutions);
+        
+        if (isAdmin(authentication)) {
+            return ResponseEntity.ok(solutions);
+        } else {
+            List<SolutionPublicDTO> publicSolutions = solutions.stream()
+                    .map(SolutionPublicDTO::fromFull)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(publicSolutions);
+        }
     }
 
-    // admin apis
+    // ============================================
+    // ADMIN ENDPOINTS
+    // ============================================
 
-    @PostMapping("/question/{questionId}") // create new solution
+    @PostMapping("/question/{questionId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<SolutionDTO> createSolution(
             @PathVariable String questionId,
             @Valid @RequestBody SolutionDTO solutionDTO,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         User currentUser = (User) authentication.getPrincipal();
         SolutionDTO createdSolution = solutionService.createSolution(questionId, solutionDTO, currentUser);
         return ResponseEntity.status(201).body(createdSolution);
     }
 
-    @PutMapping("/{id}")// solution id
+    @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<SolutionDTO> updateSolution(
             @PathVariable String id,
-            @Valid @RequestBody SolutionDTO solutionDTO
-    ) {
+            @Valid @RequestBody SolutionDTO solutionDTO) {
         try {
             SolutionDTO updatedSolution = solutionService.updateSolution(id, solutionDTO);
             return ResponseEntity.ok(updatedSolution);
@@ -76,15 +115,11 @@ public class SolutionController {
         }
     }
 
-    /**
-     * Add image to solution
-     */
     @PostMapping("/{id}/images")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<SolutionDTO> addImageToSolution(
             @PathVariable String id,
-            @RequestParam String imageUrl
-    ) {
+            @RequestParam String imageUrl) {
         try {
             SolutionDTO updatedSolution = solutionService.addImageToSolution(id, imageUrl);
             return ResponseEntity.ok(updatedSolution);
@@ -93,15 +128,11 @@ public class SolutionController {
         }
     }
 
-    /**
-     * Remove image from solution
-     */
     @DeleteMapping("/{id}/images")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<SolutionDTO> removeImageFromSolution(
             @PathVariable String id,
-            @RequestParam String imageUrl
-    ) {
+            @RequestParam String imageUrl) {
         try {
             SolutionDTO updatedSolution = solutionService.removeImageFromSolution(id, imageUrl);
             return ResponseEntity.ok(updatedSolution);
@@ -110,15 +141,11 @@ public class SolutionController {
         }
     }
 
-    /**
-     * Add visualizer to solution
-     */
     @PostMapping("/{id}/visualizers")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<SolutionDTO> addVisualizerToSolution(
             @PathVariable String id,
-            @RequestParam String visualizerFileId
-    ) {
+            @RequestParam String visualizerFileId) {
         try {
             SolutionDTO updatedSolution = solutionService.addVisualizerToSolution(id, visualizerFileId);
             return ResponseEntity.ok(updatedSolution);
@@ -127,15 +154,11 @@ public class SolutionController {
         }
     }
 
-    /**
-     * Remove visualizer from solution
-     */
     @DeleteMapping("/{id}/visualizers")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<SolutionDTO> removeVisualizerFromSolution(
             @PathVariable String id,
-            @RequestParam String visualizerFileId
-    ) {
+            @RequestParam String visualizerFileId) {
         try {
             SolutionDTO updatedSolution = solutionService.removeVisualizerFromSolution(id, visualizerFileId);
             return ResponseEntity.ok(updatedSolution);
@@ -144,14 +167,10 @@ public class SolutionController {
         }
     }
 
-    /**
-     * Validate YouTube link and extract video info
-     */
     @PostMapping("/validate-youtube")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<Map<String, Object>> validateYoutubeLink(
-            @RequestBody Map<String, String> request
-    ) {
+            @RequestBody Map<String, String> request) {
         String youtubeLink = request.get("youtubeLink");
         Map<String, Object> response = new HashMap<>();
         
@@ -162,7 +181,6 @@ public class SolutionController {
                 return ResponseEntity.badRequest().body(response);
             }
             
-            // Create a temporary DTO to validate
             SolutionDTO tempDTO = new SolutionDTO();
             tempDTO.setYoutubeLink(youtubeLink);
             
@@ -180,14 +198,10 @@ public class SolutionController {
         }
     }
 
-    /**
-     * Validate Google Drive link
-     */
     @PostMapping("/validate-drive")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
     public ResponseEntity<Map<String, Object>> validateDriveLink(
-            @RequestBody Map<String, String> request
-    ) {
+            @RequestBody Map<String, String> request) {
         String driveLink = request.get("driveLink");
         Map<String, Object> response = new HashMap<>();
         
@@ -198,7 +212,6 @@ public class SolutionController {
                 return ResponseEntity.badRequest().body(response);
             }
             
-            // Create a temporary DTO to validate
             SolutionDTO tempDTO = new SolutionDTO();
             tempDTO.setDriveLink(driveLink);
             
@@ -213,5 +226,4 @@ public class SolutionController {
             return ResponseEntity.badRequest().body(response);
         }
     }
-
 }

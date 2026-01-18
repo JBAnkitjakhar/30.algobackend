@@ -249,7 +249,7 @@ public class FileUploadController {
     }
 
     /**
-     * ALTERNATIVE APPROACH: Serve raw HTML content without any processing
+     * Serve raw HTML content without any processing
      * This bypasses all sanitization issues for trusted educational content
      */
     @GetMapping("/visualizers/{fileId}")
