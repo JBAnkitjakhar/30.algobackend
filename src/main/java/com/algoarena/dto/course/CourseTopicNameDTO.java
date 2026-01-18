@@ -7,18 +7,20 @@ public class CourseTopicNameDTO {
     
     private String id;
     private String name;
-    private String iconUrl; // ✅ ADD THIS
+    private String iconUrl;
     private Boolean isPublic;
     private Integer displayOrder;
+    private Integer videoCount; // ✅ NEW: Number of videos in this topic
 
     public CourseTopicNameDTO() {}
 
     public CourseTopicNameDTO(CourseTopic topic) {
         this.id = topic.getId();
         this.name = topic.getName();
-        this.iconUrl = topic.getIconUrl(); // ✅ ADD THIS
+        this.iconUrl = topic.getIconUrl();
         this.isPublic = topic.getIsPublic();
         this.displayOrder = topic.getDisplayOrder();
+        this.videoCount = (topic.getVideoLinks() != null) ? topic.getVideoLinks().size() : 0; // ✅ NEW
     }
 
     public static CourseTopicNameDTO fromEntity(CourseTopic topic) {
@@ -42,7 +44,6 @@ public class CourseTopicNameDTO {
         this.name = name; 
     }
 
-    // ✅ ADD THIS GETTER/SETTER
     public String getIconUrl() { 
         return iconUrl; 
     }
@@ -65,5 +66,14 @@ public class CourseTopicNameDTO {
     
     public void setDisplayOrder(Integer displayOrder) { 
         this.displayOrder = displayOrder; 
+    }
+
+    // ✅ NEW: Video count getter/setter
+    public Integer getVideoCount() { 
+        return videoCount; 
+    }
+    
+    public void setVideoCount(Integer videoCount) { 
+        this.videoCount = videoCount; 
     }
 }

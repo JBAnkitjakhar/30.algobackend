@@ -113,7 +113,8 @@ public class CourseTopicService {
      * EVICTS: All related caches
      */
     @Transactional
-    @CacheEvict(value = { "courseTopic", "topicNamesPublic", "topicNamesAdmin", "courseDocsList", "courseDoc", "courseReadStats" }, allEntries = true)
+    @CacheEvict(value = { "courseTopic", "topicNamesPublic", "topicNamesAdmin", "courseDocsList", "courseDoc",
+            "courseReadStats" }, allEntries = true)
     public CourseTopicDTO updateTopic(String id, CourseTopicDTO dto, User currentUser) {
         CourseTopic topic = topicRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Topic not found with id: " + id));
@@ -133,6 +134,31 @@ public class CourseTopicService {
         topic.setIconUrl(dto.getIconUrl());
         topic.setIsPublic(dto.getIsPublic() != null ? dto.getIsPublic() : true);
         topic.setVideoLinks(dto.getVideoLinks() != null ? dto.getVideoLinks() : new ArrayList<>());
+
+        CourseTopic updatedTopic = topicRepository.save(topic);
+
+        CourseTopicDTO result = CourseTopicDTO.fromEntity(updatedTopic);
+        long docCount = docRepository.countByTopicId(updatedTopic.getId());
+        result.setDocsCount(docCount);
+
+        return result;
+    }
+
+    /**
+     * Update ONLY video links for a topic (Admin only)
+     * EVICTS: Related caches
+     */
+    @Transactional
+    @CacheEvict(value = { "courseTopic", "topicNamesPublic", "topicNamesAdmin", "courseDocsList" }, allEntries = true)
+    public CourseTopicDTO updateTopicVideos(String id, List<String> videoLinks) {
+        CourseTopic topic = topicRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Topic not found with id: " + id));
+
+        // ✅ Validate all video links
+        validateVideoLinks(videoLinks);
+
+        // ✅ Update ONLY video links
+        topic.setVideoLinks(videoLinks != null ? videoLinks : new ArrayList<>());
 
         CourseTopic updatedTopic = topicRepository.save(topic);
 
@@ -182,17 +208,19 @@ public class CourseTopicService {
                 .map(CourseDoc::getId)
                 .collect(Collectors.toList());
 
-        // System.out.println("Deleting topic '" + topic.getName() + "' with " + docs.size() + " documents");
+        // System.out.println("Deleting topic '" + topic.getName() + "' with " +
+        // docs.size() + " documents");
 
         for (CourseDoc doc : docs) {
             if (doc.getImageUrls() != null && !doc.getImageUrls().isEmpty()) {
-                // System.out.println("  Deleting " + doc.getImageUrls().size() + " images from doc: " + doc.getTitle());
+                // System.out.println(" Deleting " + doc.getImageUrls().size() + " images from
+                // doc: " + doc.getTitle());
 
                 for (String imageUrl : doc.getImageUrls()) {
                     try {
                         String publicId = extractPublicIdFromUrl(imageUrl);
                         cloudinaryService.deleteImage(publicId);
-                        // System.out.println("    ✓ Deleted image: " + publicId);
+                        // System.out.println(" ✓ Deleted image: " + publicId);
                     } catch (Exception e) {
                         System.err.println("    ✗ Failed to delete image " + imageUrl + ": " + e.getMessage());
                     }
@@ -200,7 +228,7 @@ public class CourseTopicService {
             }
 
             docRepository.delete(doc);
-            // System.out.println("  ✓ Deleted document: " + doc.getTitle());
+            // System.out.println(" ✓ Deleted document: " + doc.getTitle());
         }
 
         readProgressService.removeDocsFromAllUsers(docIds);
@@ -216,7 +244,8 @@ public class CourseTopicService {
         }
 
         if (videoLinks.size() > CourseTopic.getMaxVideoLinks()) {
-            throw new RuntimeException("Maximum " + CourseTopic.getMaxVideoLinks() + " video links allowed per topic. You provided " + videoLinks.size() + " links");
+            throw new RuntimeException("Maximum " + CourseTopic.getMaxVideoLinks()
+                    + " video links allowed per topic. You provided " + videoLinks.size() + " links");
         }
 
         int invalidCount = 0;
@@ -224,7 +253,7 @@ public class CourseTopicService {
 
         for (int i = 0; i < videoLinks.size(); i++) {
             String link = videoLinks.get(i);
-            
+
             if (link == null || link.trim().isEmpty()) {
                 invalidCount++;
                 invalidLinks.append("\n- Video link ").append(i + 1).append(": Empty link");
@@ -253,7 +282,7 @@ public class CourseTopicService {
         // https://youtube.com/watch?v=VIDEO_ID
         // https://youtu.be/VIDEO_ID
         // https://www.youtube.com/embed/VIDEO_ID
-        
+
         return url.matches("^(https?://)?(www\\.)?(youtube\\.com/(watch\\?v=|embed/)|youtu\\.be/).+$");
     }
 

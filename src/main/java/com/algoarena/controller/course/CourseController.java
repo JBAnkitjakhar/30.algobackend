@@ -71,24 +71,18 @@ public class CourseController {
      * GET /api/courses/topicsnames
      */
     @GetMapping("/topicsnames")
-    public ResponseEntity<Map<String, Object>> getPublicTopicNames(Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> getPublicTopicNames() {
         try {
             List<CourseTopicNameDTO> topicNames = topicService.getPublicTopicNames();
-            boolean isAdmin = isAdmin(authentication);
+
+            List<CourseTopicNamePublicDTO> publicData = topicNames.stream()
+                    .map(CourseTopicNamePublicDTO::fromFull)
+                    .collect(Collectors.toList());
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-
-            if (isAdmin) {
-                response.put("data", topicNames);
-            } else {
-                List<CourseTopicNamePublicDTO> publicData = topicNames.stream()
-                        .map(CourseTopicNamePublicDTO::fromFull)
-                        .collect(Collectors.toList());
-                response.put("data", publicData);
-            }
-
-            response.put("count", topicNames.size());
+            response.put("data", publicData);
+            response.put("count", publicData.size());
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -273,6 +267,39 @@ public class CourseController {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("error", "Failed to update topic");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * Update topic video links only
+     * PUT /api/courses/topics/{topicId}/videos
+     */
+    @PutMapping("/topics/{topicId}/videos")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
+    public ResponseEntity<Map<String, Object>> updateTopicVideos(
+            @PathVariable String topicId,
+            @Valid @RequestBody UpdateVideoLinksRequest request) {
+        try {
+            CourseTopicDTO updatedTopic = topicService.updateTopicVideos(topicId, request.getVideoLinks());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", updatedTopic);
+            response.put("message", "Video links updated successfully");
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to update video links");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(400).body(errorResponse);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to update video links");
             errorResponse.put("message", e.getMessage());
             return ResponseEntity.status(500).body(errorResponse);
         }
