@@ -40,6 +40,46 @@ public class ApproachDetailDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // ⭐ ADD THIS: Inner ComplexityAnalysisDTO class
+    public static class ComplexityAnalysisDTO {
+        private String timeComplexity;
+        private String spaceComplexity;
+        private String complexityDescription;
+
+        public ComplexityAnalysisDTO() {
+        }
+
+        public ComplexityAnalysisDTO(String timeComplexity, String spaceComplexity, String complexityDescription) {
+            this.timeComplexity = timeComplexity;
+            this.spaceComplexity = spaceComplexity;
+            this.complexityDescription = complexityDescription;
+        }
+
+        public String getTimeComplexity() {
+            return timeComplexity;
+        }
+
+        public void setTimeComplexity(String timeComplexity) {
+            this.timeComplexity = timeComplexity;
+        }
+
+        public String getSpaceComplexity() {
+            return spaceComplexity;
+        }
+
+        public void setSpaceComplexity(String spaceComplexity) {
+            this.spaceComplexity = spaceComplexity;
+        }
+
+        public String getComplexityDescription() {
+            return complexityDescription;
+        }
+
+        public void setComplexityDescription(String complexityDescription) {
+            this.complexityDescription = complexityDescription;
+        }
+    }
+
     public static class TestcaseFailureDTO {
         private String input;
         private String userOutput;

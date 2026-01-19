@@ -4,7 +4,6 @@ package com.algoarena.controller.dsa;
 import com.algoarena.dto.dsa.ApproachDetailDTO;
 import com.algoarena.dto.dsa.ApproachMetadataDTO;
 import com.algoarena.dto.dsa.ApproachUpdateDTO;
-import com.algoarena.dto.dsa.ComplexityAnalysisDTO;
 import com.algoarena.model.User;
 import com.algoarena.service.dsa.ApproachService;
 import jakarta.validation.Valid;
@@ -129,15 +128,15 @@ public class ApproachController {
     }
 
     /**
-     * ⭐ NEW: Analyze complexity for an ACCEPTED approach (one-time only)
-     * This endpoint is called after AI analysis to store the complexity
-     * Can only be called once per approach - complexity cannot be modified after being set
+     * ⭐ UPDATED: Smart complexity analysis endpoint
+     * - If complexity exists → return it immediately
+     * - If null → analyze via Gemini, save, and return
+     * - No request body needed - backend fetches everything
      */
     @PutMapping("/question/{questionId}/{approachId}/analyze-complexity")
     public ResponseEntity<Map<String, Object>> analyzeComplexity(
             @PathVariable String questionId,
             @PathVariable String approachId,
-            @Valid @RequestBody ComplexityAnalysisDTO complexityDTO,
             Authentication authentication) {
         User currentUser = (User) authentication.getPrincipal();
 
@@ -145,12 +144,11 @@ public class ApproachController {
             ApproachDetailDTO updated = approachService.analyzeComplexity(
                     currentUser.getId(),
                     questionId,
-                    approachId,
-                    complexityDTO);
+                    approachId);
 
             Map<String, Object> response = Map.of(
                     "success", true,
-                    "message", "Complexity analysis added successfully",
+                    "message", "Complexity analysis completed successfully",
                     "data", updated);
 
             return ResponseEntity.ok(response);

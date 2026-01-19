@@ -1,15 +1,18 @@
 // src/main/java/com/algoarena/service/dsa/ApproachService.java
 package com.algoarena.service.dsa;
 
+import com.algoarena.dto.complexity.ComplexityAnalysisRequest;
+import com.algoarena.dto.complexity.ComplexityAnalysisResponse;
 import com.algoarena.dto.dsa.ApproachDetailDTO;
 import com.algoarena.dto.dsa.ApproachMetadataDTO;
 import com.algoarena.dto.dsa.ApproachUpdateDTO;
-import com.algoarena.dto.dsa.ComplexityAnalysisDTO;
 import com.algoarena.model.User;
 import com.algoarena.model.UserApproaches;
 import com.algoarena.model.UserApproaches.ApproachData;
 import com.algoarena.repository.QuestionRepository;
 import com.algoarena.repository.UserApproachesRepository;
+import com.algoarena.service.complexity.ComplexityAnalysisService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +45,9 @@ public class ApproachService {
 
     @Autowired
     private SubmissionTrackingService submissionTrackingService;
+
+    @Autowired
+    private ComplexityAnalysisService complexityAnalysisService;
 
     /**
      * Get all approaches metadata for a question (list view - no full content)
@@ -178,7 +184,8 @@ public class ApproachService {
 
         mongoTemplate.upsert(query, update, UserApproaches.class);
 
-        // ⭐ Record submission for heatmap tracking (non-blocking means if it fails, approach is still created)
+        // ⭐ Record submission for heatmap tracking (non-blocking means if it fails,
+        // approach is still created)
         try {
             submissionTrackingService.recordSubmission(userId);
         } catch (Exception e) {
@@ -251,10 +258,11 @@ public class ApproachService {
     }
 
     /**
-     * ✅ Analyze complexity - ATOMIC with Map-of-Maps
+     * ✅ Smart complexity analysis - checks existing, analyzes if needed
+     * No parameters needed - fetches approach internally
      */
-    public ApproachDetailDTO analyzeComplexity(String userId, String questionId, String approachId,
-            ComplexityAnalysisDTO complexityDTO) {
+    public ApproachDetailDTO analyzeComplexity(String userId, String questionId, String approachId) {
+        // 1️⃣ Fetch approach
         Query findQuery = new Query(Criteria.where("userId").is(userId));
         UserApproaches userApproaches = mongoTemplate.findOne(findQuery, UserApproaches.class);
 
@@ -267,21 +275,43 @@ public class ApproachService {
             throw new RuntimeException("Approach not found with id: " + approachId);
         }
 
+        // 2️⃣ Validate it's ACCEPTED
         if (approach.getStatus() != UserApproaches.ApproachStatus.ACCEPTED) {
-            throw new RuntimeException("Complexity analysis can only be added to ACCEPTED approaches");
+            throw new RuntimeException("Complexity analysis is only available for ACCEPTED approaches");
         }
 
+        // 3️⃣ Check if complexity already exists
         if (approach.getComplexityAnalysis() != null) {
-            throw new RuntimeException("Complexity analysis already exists and cannot be modified");
+            // logger.info("✅ Complexity already exists for approach {}, returning cached result", approachId);
+            return new ApproachDetailDTO(approach, userId, userApproaches.getUserName());
         }
 
+        // 4️⃣ No complexity exists → Analyze via Gemini
+        // logger.info("🔍 Analyzing complexity for approach {} using Gemini...", approachId);
+
+        if (approach.getCodeContent() == null || approach.getCodeContent().trim().isEmpty()) {
+            throw new RuntimeException("No code found to analyze");
+        }
+
+        ComplexityAnalysisRequest request = new ComplexityAnalysisRequest(
+                approach.getCodeContent(),
+                approach.getCodeLanguage());
+
+        ComplexityAnalysisResponse geminiResponse;
+        try {
+            geminiResponse = complexityAnalysisService.analyzeComplexity(request);
+        } catch (Exception e) {
+            logger.error("❌ Gemini analysis failed: {}", e.getMessage());
+            throw new RuntimeException("AI analysis failed: " + e.getMessage());
+        }
+
+        // 5️⃣ Save complexity to database
         ApproachData.ComplexityAnalysis complexity = new ApproachData.ComplexityAnalysis(
-                complexityDTO.getTimeComplexity(),
-                complexityDTO.getSpaceComplexity(),
-                complexityDTO.getComplexityDescription());
+                geminiResponse.getTimeComplexity(),
+                geminiResponse.getSpaceComplexity(),
+                geminiResponse.getComplexityDescription());
 
         Query query = new Query(Criteria.where("userId").is(userId));
-
         String complexityPath = "approaches." + questionId + "." + approachId + ".complexityAnalysis";
         String updatedPath = "approaches." + questionId + "." + approachId + ".updatedAt";
 
@@ -295,6 +325,7 @@ public class ApproachService {
         approach.setComplexityAnalysis(complexity);
         approach.setUpdatedAt(LocalDateTime.now());
 
+        // logger.info("✅ Complexity saved successfully for approach {}", approachId);
         return new ApproachDetailDTO(approach, userId, userApproaches.getUserName());
     }
 

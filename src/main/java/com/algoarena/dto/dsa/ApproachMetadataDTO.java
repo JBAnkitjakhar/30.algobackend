@@ -16,7 +16,7 @@ public class ApproachMetadataDTO {
     private ApproachStatus status;
     private Long runtime;
     private Long memory;
-    private ComplexityAnalysisDTO complexityAnalysis;
+    private ApproachDetailDTO.ComplexityAnalysisDTO complexityAnalysis;   
     private int contentSize;
     private double contentSizeKB;
     
@@ -35,12 +35,11 @@ public class ApproachMetadataDTO {
         this.runtime = data.getRuntime();
         this.memory = data.getMemory();
         
-        // ✅ FIXED: Include complexityDescription
         if (data.getComplexityAnalysis() != null) {
-            this.complexityAnalysis = new ComplexityAnalysisDTO(
+            this.complexityAnalysis = new ApproachDetailDTO.ComplexityAnalysisDTO(  
                 data.getComplexityAnalysis().getTimeComplexity(),
                 data.getComplexityAnalysis().getSpaceComplexity(),
-                data.getComplexityAnalysis().getComplexityDescription()  // ✅ Added this!
+                data.getComplexityAnalysis().getComplexityDescription()   
             );
         }
         
@@ -115,11 +114,11 @@ public class ApproachMetadataDTO {
         this.memory = memory;
     }
 
-    public ComplexityAnalysisDTO getComplexityAnalysis() {
+    public ApproachDetailDTO.ComplexityAnalysisDTO getComplexityAnalysis() {
         return complexityAnalysis;
     }
 
-    public void setComplexityAnalysis(ComplexityAnalysisDTO complexityAnalysis) {
+    public void setComplexityAnalysis(ApproachDetailDTO.ComplexityAnalysisDTO complexityAnalysis) {   
         this.complexityAnalysis = complexityAnalysis;
     }
 
