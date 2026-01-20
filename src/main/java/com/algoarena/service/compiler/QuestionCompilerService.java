@@ -78,8 +78,8 @@ public class QuestionCompilerService {
                 return result;
             }
 
-            // Execute and compare
-            return executeAndCompare(
+            // Execute in BATCH mode
+            return executeBatch(
                 question, 
                 request.getCode(), 
                 request.getLanguage(), 
@@ -120,8 +120,8 @@ public class QuestionCompilerService {
             // Use ALL testcases
             List<Question.Testcase> allTestcases = question.getTestcases();
 
-            // Execute and compare
-            CodeExecutionResult result = executeAndCompare(
+            // Execute in BATCH mode
+            CodeExecutionResult result = executeBatch(
                 question, 
                 request.getCode(), 
                 request.getLanguage(), 
@@ -139,7 +139,10 @@ public class QuestionCompilerService {
         }
     }
 
-    private CodeExecutionResult executeAndCompare(
+    /**
+     * BATCH EXECUTION: All test cases run in a single Piston call
+     */
+    private CodeExecutionResult executeBatch(
             Question question,
             String userCode,
             String language,
@@ -149,123 +152,146 @@ public class QuestionCompilerService {
         CodeExecutionResult result = new CodeExecutionResult();
 
         try {
-            logger.info("========== STARTING EXECUTION ==========");
+            logger.info("========== STARTING BATCH EXECUTION ==========");
             logger.info("Language: {}", language);
             logger.info("Number of test cases: {}", testcases.size());
             logger.info("User code length: {} chars", userCode.length());
+            logger.info("Is submit: {}", isSubmit);
 
-            // 1️⃣ Merge code with general template FIRST
-            logger.info("Step 1: Merging code with template...");
+            // 1️⃣ Merge code with BATCH template
+            logger.info("Step 1: Merging code with batch template...");
             String template = question.getGeneralTemplate().get(language);
-            String mergedCode = codeMergerService.mergeCode(userCode, template, language);
+            String mergedCode = codeMergerService.mergeBatchCode(
+                userCode, 
+                template, 
+                language, 
+                testcases
+            );
 
-            logger.info("========== MERGED CODE START ==========");
+            logger.info("========== MERGED BATCH CODE START ==========");
             logger.info("{}", mergedCode);
-            logger.info("========== MERGED CODE END ==========");
+            logger.info("========== MERGED BATCH CODE END ==========");
 
-            // 2️⃣ Check compilation (merged code)
-            logger.info("Step 2: Checking code compilation...");
-            ExecutionResponse compileCheck = pistonService.executeCode(new ExecutionRequest(
+            // 2️⃣ Execute ONCE with all test cases embedded
+            logger.info("Step 2: Executing batch code (single Piston call)...");
+            ExecutionRequest execRequest = new ExecutionRequest(
                 language,
                 pistonService.getLanguageVersion(language),
                 mergedCode
-            ));
+            );
+            // No stdin needed - inputs are hardcoded in the merged code
 
-            if (compileCheck.hasCompileError()) {
+            ExecutionResponse execResponse = pistonService.executeCode(execRequest);
+
+            // Check compilation errors
+            if (execResponse.hasCompileError()) {
                 logger.error("Compilation failed!");
-                logger.error("Compile error: {}", compileCheck.getCompile().getStderr());
+                logger.error("Compile error: {}", execResponse.getCompile().getStderr());
                 result.setSuccess(false);
                 result.setVerdict("WRONG_ANSWER");
-                result.setError(compileCheck.getCompile().getStderr());
+                result.setError(execResponse.getCompile().getStderr());
                 result.setFailedTestCaseIndex(testcases.get(0).getId());
                 return result;
             }
-            logger.info("Code compiles successfully!");
 
-            // 3️⃣ Execute with testcases
-            logger.info("Step 3: Executing test cases...");
-            List<TestCaseResult> testCaseResults = new ArrayList<>();
+            // Check runtime errors
+            if (execResponse.hasRuntimeError()) {
+                logger.error("Runtime error detected!");
+                logger.error("Runtime error: {}", execResponse.getRun().getStderr());
+                result.setSuccess(false);
+                result.setVerdict("WRONG_ANSWER");
+                result.setError("Runtime Error: " + execResponse.getRun().getStderr());
+                result.setFailedTestCaseIndex(testcases.get(0).getId());
+                return result;
+            }
+
+            logger.info("Code compiled and executed successfully!");
+
+            // 3️⃣ Parse batch output
+            String stdout = execResponse.getRun().getStdout();
+            logger.info("========== BATCH OUTPUT START ==========");
+            logger.info("{}", stdout);
+            logger.info("========== BATCH OUTPUT END ==========");
+
+            List<TestCaseResult> testCaseResults = parseBatchOutput(stdout);
+
+            if (testCaseResults.isEmpty()) {
+                logger.error("Failed to parse any test case results from output!");
+                result.setSuccess(false);
+                result.setVerdict("WRONG_ANSWER");
+                result.setError("Failed to parse execution output");
+                return result;
+            }
+
+            // 4️⃣ Analyze results
+            logger.info("Step 3: Analyzing {} test case results...", testCaseResults.size());
             long maxTime = 0;
             int passedCount = 0;
             Integer firstFailedIndex = null;
             String finalVerdict = "ACCEPTED";
 
-            for (int i = 0; i < testcases.size(); i++) {
-                Question.Testcase testcase = testcases.get(i);
-                logger.info("--- Executing test case {} (ID: {}) ---", i + 1, testcase.getId());
+            for (TestCaseResult tcResult : testCaseResults) {
+                Question.Testcase testcase = testcases.stream()
+                    .filter(tc -> tc.getId().equals(tcResult.getIndex()))
+                    .findFirst()
+                    .orElse(null);
 
-                // Prepare input
-                String stdin = codeMergerService.formatInput(testcase.getInput(), language);
-                logger.info("Input for test case {}: {}", testcase.getId(), stdin);
+                if (testcase == null) {
+                    logger.warn("Test case {} not found in question testcases", tcResult.getIndex());
+                    continue;
+                }
 
-                ExecutionRequest execRequest = new ExecutionRequest(language,
-                    pistonService.getLanguageVersion(language), mergedCode);
-                execRequest.setStdin(stdin);
+                logger.info("--- Analyzing test case {} ---", tcResult.getIndex());
+                logger.info("Output: {}", tcResult.getOutput());
+                logger.info("Time: {}ms", tcResult.getTimeMs());
+                logger.info("Expected: {}", testcase.getExpectedOutput());
 
-                ExecutionResponse execResponse = pistonService.executeCode(execRequest);
+                // Track max time
+                maxTime = Math.max(maxTime, tcResult.getTimeMs() != null ? tcResult.getTimeMs() : 0);
 
-                logger.info("Execution completed for test case {}", testcase.getId());
-                logger.info("STDOUT: {}", execResponse.getRun().getStdout());
-                logger.info("STDERR: {}", execResponse.getRun().getStderr());
-                logger.info("Exit code: {}", execResponse.getRun().getCode());
-
-                TestCaseResult tcResult = new TestCaseResult();
-                tcResult.setIndex(testcase.getId());
-
-                if (execResponse.hasRuntimeError()) {
-                    logger.error("Runtime error detected for test case {}", testcase.getId());
+                // Check for errors in output
+                if (tcResult.getOutput() != null && tcResult.getOutput().startsWith("ERROR:")) {
+                    logger.error("Test case {} had runtime error: {}", tcResult.getIndex(), tcResult.getOutput());
                     tcResult.setStatus("error");
-                    tcResult.setOutput("Runtime Error: " + execResponse.getRun().getStderr());
-                    tcResult.setTimeMs(0L);
-                    
                     if (firstFailedIndex == null) {
                         firstFailedIndex = testcase.getId();
                         finalVerdict = "WRONG_ANSWER";
                     }
-                } else {
-                    String output = execResponse.getRun().getStdout().trim();
-                    Long timeMs = execResponse.getRun().getWallTime();
-
-                    tcResult.setOutput(output);
-                    tcResult.setTimeMs(timeMs);
-
-                    maxTime = Math.max(maxTime, timeMs);
-
-                    // Compare output
-                    boolean outputMatch = outputComparatorService.compare(
-                        output, 
-                        testcase.getExpectedOutput()
-                    );
-
-                    logger.info("Output comparison: {}", outputMatch ? "MATCH" : "MISMATCH");
-                    logger.info("Expected: {}", testcase.getExpectedOutput());
-                    logger.info("Got: {}", output);
-
-                    // Check TLE
-                    boolean isTLE = timeMs > testcase.getExpectedTimeLimit();
-
-                    if (!outputMatch) {
-                        logger.warn("Output mismatch for test case {}", testcase.getId());
-                        tcResult.setStatus("wrong");
-                        if (firstFailedIndex == null) {
-                            firstFailedIndex = testcase.getId();
-                            finalVerdict = "WRONG_ANSWER";
-                        }
-                    } else if (isTLE) {
-                        logger.warn("TLE for test case {}: {}ms > {}ms", testcase.getId(), timeMs, testcase.getExpectedTimeLimit());
-                        tcResult.setStatus("tle");
-                        if (firstFailedIndex == null) {
-                            firstFailedIndex = testcase.getId();
-                            finalVerdict = "TLE";
-                        }
-                    } else {
-                        logger.info("Test case {} passed!", testcase.getId());
-                        tcResult.setStatus("success");
-                        passedCount++;
-                    }
+                    continue;
                 }
 
-                testCaseResults.add(tcResult);
+                // Compare output
+                boolean outputMatch = outputComparatorService.compare(
+                    tcResult.getOutput(),
+                    testcase.getExpectedOutput()
+                );
+
+                logger.info("Output comparison: {}", outputMatch ? "MATCH" : "MISMATCH");
+
+                // Check TLE
+                boolean isTLE = tcResult.getTimeMs() != null && 
+                               tcResult.getTimeMs() > testcase.getExpectedTimeLimit();
+
+                if (!outputMatch) {
+                    logger.warn("Output mismatch for test case {}", tcResult.getIndex());
+                    tcResult.setStatus("wrong");
+                    if (firstFailedIndex == null) {
+                        firstFailedIndex = testcase.getId();
+                        finalVerdict = "WRONG_ANSWER";
+                    }
+                } else if (isTLE) {
+                    logger.warn("TLE for test case {}: {}ms > {}ms", 
+                        tcResult.getIndex(), tcResult.getTimeMs(), testcase.getExpectedTimeLimit());
+                    tcResult.setStatus("tle");
+                    if (firstFailedIndex == null) {
+                        firstFailedIndex = testcase.getId();
+                        finalVerdict = "TLE";
+                    }
+                } else {
+                    logger.info("Test case {} passed!", tcResult.getIndex());
+                    tcResult.setStatus("success");
+                    passedCount++;
+                }
 
                 // Early exit on submit mode if failed
                 if (isSubmit && firstFailedIndex != null) {
@@ -274,16 +300,13 @@ public class QuestionCompilerService {
                 }
             }
 
-            // Build metrics
+            // 5️⃣ Build result
             CodeExecutionResult.ExecutionMetrics metrics = new CodeExecutionResult.ExecutionMetrics();
             metrics.setMaxTimeMs(maxTime);
             metrics.setTotalTestCases(testcases.size());
             metrics.setPassedTestCases(passedCount);
-
-            // Memory from last execution
-            if (!testCaseResults.isEmpty()) {
-                metrics.setTotalMemoryMb(50.0); // Placeholder
-            }
+            metrics.setTotalMemoryMb(execResponse.getRun().getMemory() != null ? 
+                execResponse.getRun().getMemory() / 1024.0 / 1024.0 : 50.0);
 
             result.setSuccess(true);
             result.setVerdict(finalVerdict);
@@ -294,19 +317,86 @@ public class QuestionCompilerService {
             result.setMetrics(metrics);
             result.setFailedTestCaseIndex(firstFailedIndex);
 
-            logger.info("========== EXECUTION COMPLETE ==========");
+            logger.info("========== BATCH EXECUTION COMPLETE ==========");
             logger.info("Final verdict: {}", finalVerdict);
             logger.info("Passed: {}/{}", passedCount, testcases.size());
+            logger.info("Max time: {}ms", maxTime);
 
             return result;
 
         } catch (Exception e) {
-            logger.error("Exception during execution!", e);
+            logger.error("Exception during batch execution!", e);
             result.setSuccess(false);
             result.setVerdict("WRONG_ANSWER");
             result.setError(e.getMessage());
             return result;
         }
+    }
+
+    /**
+     * Parse batch output format:
+     * TC_START:1
+     * OUTPUT:[[-1,-1,2],[-1,0,1]]
+     * TIME:45
+     * TC_END:1
+     */
+    private List<TestCaseResult> parseBatchOutput(String stdout) {
+        List<TestCaseResult> results = new ArrayList<>();
+        
+        if (stdout == null || stdout.trim().isEmpty()) {
+            logger.error("Stdout is empty!");
+            return results;
+        }
+        
+        String[] lines = stdout.split("\n");
+        TestCaseResult currentResult = null;
+        
+        for (String line : lines) {
+            line = line.trim();
+            
+            if (line.startsWith("TC_START:")) {
+                int id = Integer.parseInt(line.substring("TC_START:".length()).trim());
+                currentResult = new TestCaseResult();
+                currentResult.setIndex(id);
+                logger.debug("Started parsing test case {}", id);
+                
+            } else if (line.startsWith("OUTPUT:")) {
+                if (currentResult != null) {
+                    String output = line.substring("OUTPUT:".length()).trim();
+                    currentResult.setOutput(output);
+                    logger.debug("Parsed output: {}", output);
+                }
+                
+            } else if (line.startsWith("TIME:")) {
+                if (currentResult != null) {
+                    try {
+                        long timeMs = Long.parseLong(line.substring("TIME:".length()).trim());
+                        currentResult.setTimeMs(timeMs);
+                        logger.debug("Parsed time: {}ms", timeMs);
+                    } catch (NumberFormatException e) {
+                        logger.error("Failed to parse time: {}", line);
+                        currentResult.setTimeMs(0L);
+                    }
+                }
+                
+            } else if (line.startsWith("TC_END:")) {
+                if (currentResult != null) {
+                    results.add(currentResult);
+                    logger.debug("Completed parsing test case {}", currentResult.getIndex());
+                    currentResult = null;
+                }
+            }
+        }
+        
+        // If parsing was incomplete, add partial result
+        if (currentResult != null) {
+            logger.warn("Incomplete test case result detected, adding partial result");
+            currentResult.setStatus("incomplete");
+            results.add(currentResult);
+        }
+        
+        logger.info("Parsed {} test case results from batch output", results.size());
+        return results;
     }
 
     private void saveApproach(Question question, SubmitCodeRequest request, 
