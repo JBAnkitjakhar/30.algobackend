@@ -25,7 +25,6 @@ public class QuestionDTO {
     private String statement;
 
     private List<String> imageUrls;
-    private String imageFolderUrl;
 
     @NotNull(message = "Category is required")
     private String categoryId;
@@ -39,6 +38,9 @@ public class QuestionDTO {
     private Map<String, String> userStarterCode;
     private Map<String, String> generalTemplate;
     private Map<String, String> correctSolution;
+
+    // ✅ NEW: Method name for execution
+    private String methodName;
 
     // Testcases
     private List<TestcaseDTO> testcases;
@@ -54,7 +56,6 @@ public class QuestionDTO {
         private Integer id;
         private Map<String, Object> input;
         private Object expectedOutput;
-        private Long expectedTimeLimit; // ⭐ NEW: Time limit in ms
 
         public TestcaseDTO() {
         }
@@ -63,7 +64,6 @@ public class QuestionDTO {
             this.id = testcase.getId();
             this.input = testcase.getInput();
             this.expectedOutput = testcase.getExpectedOutput();
-            this.expectedTimeLimit = testcase.getExpectedTimeLimit();
         }
 
         public Integer getId() {
@@ -89,14 +89,6 @@ public class QuestionDTO {
         public void setExpectedOutput(Object expectedOutput) {
             this.expectedOutput = expectedOutput;
         }
-
-        public Long getExpectedTimeLimit() {
-            return expectedTimeLimit;
-        }
-
-        public void setExpectedTimeLimit(Long expectedTimeLimit) {
-            this.expectedTimeLimit = expectedTimeLimit;
-        }
     }
 
     // Constructors
@@ -109,11 +101,11 @@ public class QuestionDTO {
         this.title = question.getTitle();
         this.statement = question.getStatement();
         this.imageUrls = question.getImageUrls();
-        this.imageFolderUrl = question.getImageFolderUrl();
 
         this.userStarterCode = question.getUserStarterCode();
         this.generalTemplate = question.getGeneralTemplate();
         this.correctSolution = question.getCorrectSolution();
+        this.methodName = question.getMethodName(); // ✅ NEW
 
         if (question.getTestcases() != null) {
             this.testcases = question.getTestcases().stream()
@@ -175,14 +167,6 @@ public class QuestionDTO {
         this.imageUrls = imageUrls;
     }
 
-    public String getImageFolderUrl() {
-        return imageFolderUrl;
-    }
-
-    public void setImageFolderUrl(String imageFolderUrl) {
-        this.imageFolderUrl = imageFolderUrl;
-    }
-
     public Map<String, String> getUserStarterCode() {
         return userStarterCode;
     }
@@ -205,6 +189,15 @@ public class QuestionDTO {
 
     public void setCorrectSolution(Map<String, String> correctSolution) {
         this.correctSolution = correctSolution;
+    }
+
+    // ✅ NEW: Getter and Setter for methodName
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public void setMethodName(String methodName) {
+        this.methodName = methodName;
     }
 
     public List<TestcaseDTO> getTestcases() {

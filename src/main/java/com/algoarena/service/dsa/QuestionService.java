@@ -74,12 +74,12 @@ public class QuestionService {
         question.setTitle(questionDTO.getTitle());
         question.setStatement(questionDTO.getStatement());
         question.setImageUrls(questionDTO.getImageUrls());
-        question.setImageFolderUrl(questionDTO.getImageFolderUrl());
 
         // Set code templates
         question.setUserStarterCode(questionDTO.getUserStarterCode());
         question.setGeneralTemplate(questionDTO.getGeneralTemplate());
         question.setCorrectSolution(questionDTO.getCorrectSolution());
+        question.setMethodName(questionDTO.getMethodName()); // ✅ NEW
 
         // Set testcases
         if (questionDTO.getTestcases() != null) {
@@ -87,8 +87,7 @@ public class QuestionService {
                     .map(dto -> new Question.Testcase(
                             dto.getId(),
                             dto.getInput(),
-                            dto.getExpectedOutput(),
-                            dto.getExpectedTimeLimit()))
+                            dto.getExpectedOutput()))
                     .toList();
             question.setTestcases(testcases);
         }
@@ -151,12 +150,12 @@ public class QuestionService {
         question.setTitle(questionDTO.getTitle());
         question.setStatement(questionDTO.getStatement());
         question.setImageUrls(questionDTO.getImageUrls());
-        question.setImageFolderUrl(questionDTO.getImageFolderUrl());
 
         // Update code templates
         question.setUserStarterCode(questionDTO.getUserStarterCode());
         question.setGeneralTemplate(questionDTO.getGeneralTemplate());
         question.setCorrectSolution(questionDTO.getCorrectSolution());
+        question.setMethodName(questionDTO.getMethodName()); // ✅ NEW
 
         // Update testcases
         if (questionDTO.getTestcases() != null) {
@@ -164,8 +163,7 @@ public class QuestionService {
                     .map(dto -> new Question.Testcase(
                             dto.getId(),
                             dto.getInput(),
-                            dto.getExpectedOutput(),
-                            dto.getExpectedTimeLimit()))
+                            dto.getExpectedOutput()))
                     .toList();
             question.setTestcases(testcases);
         }

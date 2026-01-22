@@ -23,7 +23,6 @@ public class Question {
     private String statement;
 
     private List<String> imageUrls;
-    private String imageFolderUrl;
 
     @Indexed
     private String categoryId;
@@ -35,6 +34,9 @@ public class Question {
     private Map<String, String> userStarterCode;
     private Map<String, String> generalTemplate;
     private Map<String, String> correctSolution;
+
+    // ✅ NEW: Method name to call for execution (e.g., "numDistinctIslands", "twoSum")
+    private String methodName;
 
     // Testcases
     private List<Testcase> testcases;
@@ -52,16 +54,14 @@ public class Question {
         private Integer id;
         private Map<String, Object> input;
         private Object expectedOutput;
-        private Long expectedTimeLimit; // ⭐ NEW: Time limit in milliseconds
 
         public Testcase() {
         }
 
-        public Testcase(Integer id, Map<String, Object> input, Object expectedOutput, Long expectedTimeLimit) {
+        public Testcase(Integer id, Map<String, Object> input, Object expectedOutput) {
             this.id = id;
             this.input = input;
             this.expectedOutput = expectedOutput;
-            this.expectedTimeLimit = expectedTimeLimit;
         }
 
         public Integer getId() {
@@ -86,14 +86,6 @@ public class Question {
 
         public void setExpectedOutput(Object expectedOutput) {
             this.expectedOutput = expectedOutput;
-        }
-
-        public Long getExpectedTimeLimit() {
-            return expectedTimeLimit;
-        }
-
-        public void setExpectedTimeLimit(Long expectedTimeLimit) {
-            this.expectedTimeLimit = expectedTimeLimit;
         }
     }
 
@@ -147,15 +139,6 @@ public class Question {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public String getImageFolderUrl() {
-        return imageFolderUrl;
-    }
-
-    public void setImageFolderUrl(String imageFolderUrl) {
-        this.imageFolderUrl = imageFolderUrl;
-        this.updatedAt = LocalDateTime.now();
-    }
-
     public Map<String, String> getUserStarterCode() {
         return userStarterCode;
     }
@@ -180,6 +163,16 @@ public class Question {
 
     public void setCorrectSolution(Map<String, String> correctSolution) {
         this.correctSolution = correctSolution;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    // ✅ NEW: Getter and Setter for methodName
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public void setMethodName(String methodName) {
+        this.methodName = methodName;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -258,6 +251,7 @@ public class Question {
                 ", title='" + title + '\'' +
                 ", categoryId='" + categoryId + '\'' +
                 ", level=" + level +
+                ", methodName='" + methodName + '\'' +
                 ", version=" + version +
                 '}';
     }

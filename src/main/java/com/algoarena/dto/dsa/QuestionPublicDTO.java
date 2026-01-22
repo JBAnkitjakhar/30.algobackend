@@ -5,17 +5,12 @@ import com.algoarena.model.QuestionLevel;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Public version of QuestionDTO
- * Excludes: version, displayOrder, createdByName, createdById, createdAt, updatedAt
- */
 public class QuestionPublicDTO {
 
     private String id;
     private String title;
     private String statement;
     private List<String> imageUrls;
-    private String imageFolderUrl;
     private String categoryId;
     private QuestionLevel level;
     
@@ -32,7 +27,6 @@ public class QuestionPublicDTO {
         private Integer id;
         private Map<String, Object> input;
         private Object expectedOutput;
-        private Long expectedTimeLimit;
 
         public TestcaseDTO() {}
 
@@ -40,7 +34,6 @@ public class QuestionPublicDTO {
             this.id = testcase.getId();
             this.input = testcase.getInput();
             this.expectedOutput = testcase.getExpectedOutput();
-            this.expectedTimeLimit = testcase.getExpectedTimeLimit();
         }
 
         // Getters and Setters
@@ -52,9 +45,6 @@ public class QuestionPublicDTO {
 
         public Object getExpectedOutput() { return expectedOutput; }
         public void setExpectedOutput(Object expectedOutput) { this.expectedOutput = expectedOutput; }
-
-        public Long getExpectedTimeLimit() { return expectedTimeLimit; }
-        public void setExpectedTimeLimit(Long expectedTimeLimit) { this.expectedTimeLimit = expectedTimeLimit; }
     }
 
     public QuestionPublicDTO() {}
@@ -65,7 +55,6 @@ public class QuestionPublicDTO {
         dto.title = full.getTitle();
         dto.statement = full.getStatement();
         dto.imageUrls = full.getImageUrls();
-        dto.imageFolderUrl = full.getImageFolderUrl();
         dto.categoryId = full.getCategoryId();
         dto.level = full.getLevel();
         dto.userStarterCode = full.getUserStarterCode();
@@ -93,9 +82,6 @@ public class QuestionPublicDTO {
 
     public List<String> getImageUrls() { return imageUrls; }
     public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
-
-    public String getImageFolderUrl() { return imageFolderUrl; }
-    public void setImageFolderUrl(String imageFolderUrl) { this.imageFolderUrl = imageFolderUrl; }
 
     public String getCategoryId() { return categoryId; }
     public void setCategoryId(String categoryId) { this.categoryId = categoryId; }
