@@ -11,38 +11,23 @@ import java.util.regex.Pattern;
 @Service
 public class JavaTemplateGenerator {
 
-    /**
-     * Generates complete Java code for execution
-     * 
-     * @param correctSolution The correct solution class code from DB
-     * @param userCode The user's solution code
-     * @param testCases List of test cases from frontend
-     * @param methodName The method name to call (from DB)
-     * @return Complete Java code ready for Piston execution
-     */
     public String generateRunTemplate(
             String correctSolution,
             String userCode,
             List<RunTestCaseInput> testCases,
-            String methodName) { // ✅ NEW parameter
+            String methodName) {
         
-        // ✅ Extract method signature using the provided methodName
         MethodSignature signature = extractMethodSignature(correctSolution, methodName);
         
         StringBuilder template = new StringBuilder();
         
-        // 1. Imports
         template.append("import java.util.*;\n\n");
-        
-        // 2. Main class with test cases
         template.append(generateMainClass(signature, testCases));
         
-        // 3. Correct solution (rename Solution -> CorrectSolution)
         template.append("\n// ===== CORRECT SOLUTION =====\n");
         template.append(correctSolution.replace("class Solution", "class CorrectSolution"));
         template.append("\n\n");
         
-        // 4. User solution
         template.append("// ===== USER SOLUTION =====\n");
         template.append(userCode);
         template.append("\n");
@@ -50,13 +35,7 @@ public class JavaTemplateGenerator {
         return template.toString();
     }
 
-    /**
-     * ✅ UPDATED: Extract method signature for the SPECIFIC methodName
-     * Example: Find "public int numDistinctIslands(int[][] grid)"
-     */
     private MethodSignature extractMethodSignature(String correctSolution, String methodName) {
-        // Pattern to match: public returnType METHODNAME(params)
-        // Using \\b for word boundary to match exact method name
         String patternString = "public\\s+(\\w+(?:\\[\\])*?)\\s+" + 
                                Pattern.quote(methodName) + 
                                "\\s*\\(([^)]*)\\)";
@@ -89,58 +68,44 @@ public class JavaTemplateGenerator {
         return new MethodSignature(returnType, methodName, parameters);
     }
 
-    /**
-     * Generate Main class with all test cases
-     */
     private String generateMainClass(MethodSignature signature, List<RunTestCaseInput> testCases) {
         StringBuilder main = new StringBuilder();
         
         main.append("public class Main {\n");
-        main.append("    public static void main(String[] args) {\n");
-        main.append("        CorrectSolution correctSolution = new CorrectSolution();\n");
-        main.append("        Solution userSolution = new Solution();\n\n");
+        main.append("    public static void main(String[] args) {\n\n");
         
-        // Generate each test case using array index
+        // Generate each test case
         for (int i = 0; i < testCases.size(); i++) {
             main.append(generateTestCase(testCases.get(i), i + 1, signature));
         }
         
-        main.append("    }\n\n");
-        
-        // Add helper method
-        main.append(generateRunTestCaseMethod(signature));
-        
-        // Add deep copy methods if needed
-        main.append(generateDeepCopyMethods(signature));
-        
+        main.append("    }\n");
         main.append("}\n");
         
         return main.toString();
     }
 
-    /**
-     * Generate single test case code
-     * @param testCase The test case data
-     * @param testNumber Test case number (index + 1)
-     * @param signature Method signature
-     */
+    // ✅ UPDATED: Fresh instances + deep copy per test case
     private String generateTestCase(RunTestCaseInput testCase, int testNumber, MethodSignature signature) {
         StringBuilder code = new StringBuilder();
         
         code.append("        // ===== TEST CASE ").append(testNumber).append(" =====\n");
+        code.append("        try {\n");
+        
+        // ✅ CREATE FRESH INSTANCES
+        code.append("            CorrectSolution correctSolution").append(testNumber).append(" = new CorrectSolution();\n");
+        code.append("            Solution userSolution").append(testNumber).append(" = new Solution();\n\n");
         
         Map<String, Object> inputs = testCase.getInput();
-        List<String> varNames = new ArrayList<>();
         
-        // Generate variable for each parameter
+        // Generate variables for CORRECT solution
+        code.append("            // Variables for correct solution\n");
         for (Parameter param : signature.getParameters()) {
-            String varName = param.getName() + testNumber;
-            varNames.add(varName);
-            
+            String varName = param.getName() + testNumber + "Correct";
             Object value = inputs.get(param.getName());
             String javaCode = convertToJavaCode(value, param.getType());
             
-            code.append("        ")
+            code.append("            ")
                 .append(param.getType())
                 .append(" ")
                 .append(varName)
@@ -149,70 +114,149 @@ public class JavaTemplateGenerator {
                 .append(";\n");
         }
         
-        // Generate method call
-        code.append("        runTestCase(");
-        
-        for (int i = 0; i < varNames.size(); i++) {
-            code.append(varNames.get(i));
-            if (i < varNames.size() - 1) {
-                code.append(", ");
+        // ✅ DEEP COPY for correct solution if needed
+        for (Parameter param : signature.getParameters()) {
+            if (param.getType().equals("int[][]")) {
+                String varName = param.getName() + testNumber + "Correct";
+                code.append("            // Deep copy for correct solution\n");
+                code.append("            int[][] ").append(varName).append("Copy = new int[")
+                    .append(varName).append(".length][];\n");
+                code.append("            for (int i = 0; i < ").append(varName).append(".length; i++) {\n");
+                code.append("                ").append(varName).append("Copy[i] = java.util.Arrays.copyOf(")
+                    .append(varName).append("[i], ").append(varName).append("[i].length);\n");
+                code.append("            }\n");
+            } else if (param.getType().equals("int[]")) {
+                String varName = param.getName() + testNumber + "Correct";
+                code.append("            // Deep copy for correct solution\n");
+                code.append("            int[] ").append(varName).append("Copy = java.util.Arrays.copyOf(")
+                    .append(varName).append(", ").append(varName).append(".length);\n");
             }
         }
         
-        code.append(", correctSolution, userSolution);\n\n");
+        code.append("\n");
+        
+        // Generate variables for USER solution
+        code.append("            // Variables for user solution\n");
+        for (Parameter param : signature.getParameters()) {
+            String varName = param.getName() + testNumber + "User";
+            Object value = inputs.get(param.getName());
+            String javaCode = convertToJavaCode(value, param.getType());
+            
+            code.append("            ")
+                .append(param.getType())
+                .append(" ")
+                .append(varName)
+                .append(" = ")
+                .append(javaCode)
+                .append(";\n");
+        }
+        
+        // ✅ DEEP COPY for user solution if needed
+        for (Parameter param : signature.getParameters()) {
+            if (param.getType().equals("int[][]")) {
+                String varName = param.getName() + testNumber + "User";
+                code.append("            // Deep copy for user solution\n");
+                code.append("            int[][] ").append(varName).append("Copy = new int[")
+                    .append(varName).append(".length][];\n");
+                code.append("            for (int i = 0; i < ").append(varName).append(".length; i++) {\n");
+                code.append("                ").append(varName).append("Copy[i] = java.util.Arrays.copyOf(")
+                    .append(varName).append("[i], ").append(varName).append("[i].length);\n");
+                code.append("            }\n");
+            } else if (param.getType().equals("int[]")) {
+                String varName = param.getName() + testNumber + "User";
+                code.append("            // Deep copy for user solution\n");
+                code.append("            int[] ").append(varName).append("Copy = java.util.Arrays.copyOf(")
+                    .append(varName).append(", ").append(varName).append(".length);\n");
+            }
+        }
+        
+        code.append("\n");
+        
+        // Call CORRECT solution
+        code.append("            ")
+            .append(signature.getReturnType())
+            .append(" expected = correctSolution").append(testNumber).append(".")
+            .append(signature.getMethodName())
+            .append("(");
+        
+        for (int i = 0; i < signature.getParameters().size(); i++) {
+            String paramName = signature.getParameters().get(i).getName() + testNumber + "Correct";
+            String paramType = signature.getParameters().get(i).getType();
+            if (paramType.equals("int[][]") || paramType.equals("int[]")) {
+                paramName += "Copy";
+            }
+            code.append(paramName);
+            if (i < signature.getParameters().size() - 1) {
+                code.append(", ");
+            }
+        }
+        code.append(");\n\n");
+        
+        // Call USER solution
+        code.append("            ")
+            .append(signature.getReturnType())
+            .append(" actual = userSolution").append(testNumber).append(".")
+            .append(signature.getMethodName())
+            .append("(");
+        
+        for (int i = 0; i < signature.getParameters().size(); i++) {
+            String paramName = signature.getParameters().get(i).getName() + testNumber + "User";
+            String paramType = signature.getParameters().get(i).getType();
+            if (paramType.equals("int[][]") || paramType.equals("int[]")) {
+                paramName += "Copy";
+            }
+            code.append(paramName);
+            if (i < signature.getParameters().size() - 1) {
+                code.append(", ");
+            }
+        }
+        code.append(");\n\n");
+        
+        // Print results
+        code.append("            System.out.println(\"TEST_CASE_START\");\n");
+        code.append("            System.out.println(\"EXPECTED_OUTPUT : \" + expected);\n");
+        code.append("            System.out.println(\"USER_OUTPUT : \" + actual);\n");
+        code.append("            System.out.println(\"TEST_CASE_END\");\n\n");
+        
+        // Exception handling
+        code.append("        } catch (Exception e) {\n");
+        code.append("            System.out.println(\"TEST_CASE_START\");\n");
+        code.append("            System.out.println(\"ERROR : \" + e.getMessage());\n");
+        code.append("            System.out.println(\"TEST_CASE_END\");\n");
+        code.append("        }\n\n");
         
         return code.toString();
     }
 
-    /**
-     * Convert JSON value to Java code string
-     */
     private String convertToJavaCode(Object value, String type) {
-        if (value == null) {
-            return "null";
-        }
+        if (value == null) return "null";
         
-        // Handle 2D arrays: int[][]
         if (type.equals("int[][]")) {
             return convert2DIntArray((List<?>) value);
         }
-        
-        // Handle 1D arrays: int[]
         if (type.equals("int[]")) {
             return convert1DIntArray((List<?>) value);
         }
-        
-        // Handle String arrays: String[]
         if (type.equals("String[]")) {
             return convertStringArray((List<?>) value);
         }
-        
-        // Handle primitives
         if (type.equals("int") || type.equals("long") || type.equals("double") || type.equals("float")) {
             return String.valueOf(value);
         }
-        
         if (type.equals("boolean")) {
             return String.valueOf(value);
         }
-        
         if (type.equals("char")) {
             return "'" + value + "'";
         }
-        
         if (type.equals("String")) {
             return "\"" + escapeString(String.valueOf(value)) + "\"";
         }
-        
-        // Default: try to convert
         return String.valueOf(value);
     }
 
     private String convert2DIntArray(List<?> array) {
-        if (array == null || array.isEmpty()) {
-            return "new int[0][0]";
-        }
-        
+        if (array == null || array.isEmpty()) return "new int[0][0]";
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < array.size(); i++) {
             List<?> row = (List<?>) array.get(i);
@@ -229,10 +273,7 @@ public class JavaTemplateGenerator {
     }
 
     private String convert1DIntArray(List<?> array) {
-        if (array == null || array.isEmpty()) {
-            return "new int[0]";
-        }
-        
+        if (array == null || array.isEmpty()) return "new int[0]";
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < array.size(); i++) {
             sb.append(array.get(i));
@@ -243,10 +284,7 @@ public class JavaTemplateGenerator {
     }
 
     private String convertStringArray(List<?> array) {
-        if (array == null || array.isEmpty()) {
-            return "new String[0]";
-        }
-        
+        if (array == null || array.isEmpty()) return "new String[0]";
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < array.size(); i++) {
             sb.append("\"").append(escapeString(String.valueOf(array.get(i)))).append("\"");
@@ -258,152 +296,11 @@ public class JavaTemplateGenerator {
 
     private String escapeString(String str) {
         return str.replace("\\", "\\\\")
-                  .replace("\"", "\\\"")
-                  .replace("\n", "\\n")
-                  .replace("\t", "\\t");
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\t", "\\t");
     }
 
-    /**
-     * Generate runTestCase method based on signature
-     */
-    private String generateRunTestCaseMethod(MethodSignature signature) {
-        StringBuilder method = new StringBuilder();
-        
-        method.append("    private static void runTestCase(");
-        
-        // Add parameters
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            Parameter param = signature.getParameters().get(i);
-            method.append(param.getType()).append(" ").append(param.getName());
-            if (i < signature.getParameters().size() - 1) {
-                method.append(", ");
-            }
-        }
-        
-        method.append(", CorrectSolution correct, Solution user) {\n");
-        method.append("        try {\n");
-        
-        // Deep copy parameters for both solutions
-        List<String> correctParams = new ArrayList<>();
-        List<String> userParams = new ArrayList<>();
-        
-        for (Parameter param : signature.getParameters()) {
-            String correctVar = param.getName() + "Correct";
-            String userVar = param.getName() + "User";
-            
-            correctParams.add(correctVar);
-            userParams.add(userVar);
-            
-            if (needsDeepCopy(param.getType())) {
-                method.append("            ")
-                      .append(param.getType())
-                      .append(" ")
-                      .append(correctVar)
-                      .append(" = deepCopy(")
-                      .append(param.getName())
-                      .append(");\n");
-                
-                method.append("            ")
-                      .append(param.getType())
-                      .append(" ")
-                      .append(userVar)
-                      .append(" = deepCopy(")
-                      .append(param.getName())
-                      .append(");\n");
-            } else {
-                method.append("            ")
-                      .append(param.getType())
-                      .append(" ")
-                      .append(correctVar)
-                      .append(" = ")
-                      .append(param.getName())
-                      .append(";\n");
-                
-                method.append("            ")
-                      .append(param.getType())
-                      .append(" ")
-                      .append(userVar)
-                      .append(" = ")
-                      .append(param.getName())
-                      .append(";\n");
-            }
-        }
-        
-        method.append("\n");
-        
-        // Call both solutions
-        method.append("            ")
-              .append(signature.getReturnType())
-              .append(" expected = correct.")
-              .append(signature.getMethodName())
-              .append("(")
-              .append(String.join(", ", correctParams))
-              .append(");\n");
-        
-        method.append("            ")
-              .append(signature.getReturnType())
-              .append(" actual = user.")
-              .append(signature.getMethodName())
-              .append("(")
-              .append(String.join(", ", userParams))
-              .append(");\n\n");
-        
-        // Print results
-        method.append("            System.out.println(\"TEST_CASE_START\");\n");
-        method.append("            System.out.println(\"EXPECTED_OUTPUT : \" + expected);\n");
-        method.append("            System.out.println(\"USER_OUTPUT : \" + actual);\n");
-        method.append("            System.out.println(\"TEST_CASE_END\");\n\n");
-        
-        // Exception handling
-        method.append("        } catch (Exception e) {\n");
-        method.append("            System.out.println(\"TEST_CASE_START\");\n");
-        method.append("            System.out.println(\"ERROR : \" + e.getMessage());\n");
-        method.append("            System.out.println(\"TEST_CASE_END\");\n");
-        method.append("        }\n");
-        method.append("    }\n\n");
-        
-        return method.toString();
-    }
-
-    private boolean needsDeepCopy(String type) {
-        return type.contains("[]") || type.equals("List") || type.equals("Map");
-    }
-
-    /**
-     * Generate deep copy utility methods
-     */
-    private String generateDeepCopyMethods(MethodSignature signature) {
-        StringBuilder methods = new StringBuilder();
-        
-        // Check if we need int[][] deep copy
-        boolean needsIntArray2D = signature.getParameters().stream()
-            .anyMatch(p -> p.getType().equals("int[][]"));
-        
-        boolean needsIntArray1D = signature.getParameters().stream()
-            .anyMatch(p -> p.getType().equals("int[]"));
-        
-        if (needsIntArray2D) {
-            methods.append("    private static int[][] deepCopy(int[][] original) {\n");
-            methods.append("        if (original == null) return null;\n");
-            methods.append("        int[][] copy = new int[original.length][];\n");
-            methods.append("        for (int i = 0; i < original.length; i++) {\n");
-            methods.append("            copy[i] = Arrays.copyOf(original[i], original[i].length);\n");
-            methods.append("        }\n");
-            methods.append("        return copy;\n");
-            methods.append("    }\n\n");
-        }
-        
-        if (needsIntArray1D) {
-            methods.append("    private static int[] deepCopy(int[] original) {\n");
-            methods.append("        if (original == null) return null;\n");
-            methods.append("        return Arrays.copyOf(original, original.length);\n");
-            methods.append("    }\n\n");
-        }
-        
-        return methods.toString();
-    }
-
-    // Inner classes for type safety
     public static class MethodSignature {
         private final String returnType;
         private final String methodName;

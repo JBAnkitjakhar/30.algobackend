@@ -1,7 +1,7 @@
-// src/main/java/com/algoarena/service/compiler/runmode/JavaScriptTemplateGenerator.java
-package com.algoarena.service.compiler.runmode;
+// src/main/java/com/algoarena/service/compiler/submitmode/JavaScriptSubmitTemplateGenerator.java
+package com.algoarena.service.compiler.submitmode;
 
-import com.algoarena.dto.compiler.runmode.RunTestCaseInput;
+import com.algoarena.model.Question;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -9,25 +9,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
-public class JavaScriptTemplateGenerator {
+public class JavaScriptSubmitTemplateGenerator {
 
-    public String generateRunTemplate(
-            String correctSolution,
+    public String generateSubmitTemplate(
             String userCode,
-            List<RunTestCaseInput> testCases,
+            List<Question.Testcase> testcases,
             String methodName) {
         
-        MethodSignature signature = extractMethodSignature(correctSolution, methodName);
+        MethodSignature signature = extractMethodSignature(userCode, methodName);
         
         StringBuilder template = new StringBuilder();
-        
-        // Correct solution
-        template.append("// ===== CORRECT SOLUTION =====\n");
-        String renamedCorrectSolution = correctSolution
-            .replace("var Solution = function()", "var CorrectSolution = function()")
-            .replace("Solution.prototype.", "CorrectSolution.prototype.");
-        template.append(renamedCorrectSolution);
-        template.append("\n\n");
         
         // User solution
         template.append("// ===== USER SOLUTION =====\n");
@@ -35,22 +26,22 @@ public class JavaScriptTemplateGenerator {
         template.append("\n\n");
         
         // Main execution
-        template.append(generateMainExecution(signature, testCases));
+        template.append(generateMainExecution(signature, testcases));
         
         return template.toString();
     }
 
-    private MethodSignature extractMethodSignature(String correctSolution, String methodName) {
+    private MethodSignature extractMethodSignature(String userCode, String methodName) {
         String patternString = "Solution\\.prototype\\." + 
                                Pattern.quote(methodName) + 
                                "\\s*=\\s*function\\s*\\(([^)]*)\\)";
         
         Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(correctSolution);
+        Matcher matcher = pattern.matcher(userCode);
         
         if (!matcher.find()) {
             throw new IllegalArgumentException(
-                "Could not find method '" + methodName + "' in correct solution");
+                "Could not find method '" + methodName + "' in user code");
         }
         
         String paramsString = matcher.group(1).trim();
@@ -67,28 +58,26 @@ public class JavaScriptTemplateGenerator {
         return new MethodSignature("any", methodName, parameters);
     }
 
-    // ✅ UPDATED: Each test case creates fresh instances
-    private String generateMainExecution(MethodSignature signature, List<RunTestCaseInput> testCases) {
+    private String generateMainExecution(MethodSignature signature, List<Question.Testcase> testcases) {
         StringBuilder main = new StringBuilder();
         
-        // Generate each test case
-        for (int i = 0; i < testCases.size(); i++) {
-            main.append(generateTestCase(testCases.get(i), i + 1, signature));
+        for (Question.Testcase testcase : testcases) {
+            main.append(generateTestCase(testcase, signature));
         }
         
         return main.toString();
     }
 
-    // ✅ UPDATED: Fresh instances + deep copy per test case
-    private String generateTestCase(RunTestCaseInput testCase, int testNumber, MethodSignature signature) {
+    private String generateTestCase(Question.Testcase testcase, MethodSignature signature) {
         StringBuilder code = new StringBuilder();
         
+        int testNumber = testcase.getId();
         code.append("// ===== TEST CASE ").append(testNumber).append(" =====\n");
         code.append("{\n");
         
-        Map<String, Object> inputs = testCase.getInput();
+        Map<String, Object> inputs = testcase.getInput();
         
-        // Generate base variables
+        // Generate variables
         for (Parameter param : signature.getParameters()) {
             Object value = inputs.get(param.getName());
             String jsCode = convertToJsCode(value);
@@ -98,62 +87,45 @@ public class JavaScriptTemplateGenerator {
         
         code.append("\n");
         code.append("    try {\n");
+        code.append("        const solution").append(testNumber).append(" = new Solution();\n");
         
-        // ✅ CREATE FRESH INSTANCES
-        code.append("        const correctSolution").append(testNumber).append(" = new CorrectSolution();\n");
-        code.append("        const userSolution").append(testNumber).append(" = new Solution();\n\n");
-        
-        // Deep copy for correct solution
-        code.append("        // Deep copy for correct solution\n");
+        // Deep copy parameters
         for (Parameter param : signature.getParameters()) {
             code.append("        const ").append(param.getName()).append(testNumber)
-                .append("Correct = JSON.parse(JSON.stringify(")
+                .append("Copy = JSON.parse(JSON.stringify(")
                 .append(param.getName()).append(testNumber).append("));\n");
         }
         
-        code.append("\n");
-        
-        // Call CORRECT solution
-        code.append("        const expected = correctSolution").append(testNumber)
+        code.append("        const startTime = Date.now();\n");
+        code.append("        const result").append(testNumber).append(" = solution").append(testNumber)
             .append(".").append(signature.getMethodName()).append("(");
+        
         for (int i = 0; i < signature.getParameters().size(); i++) {
-            code.append(signature.getParameters().get(i).getName()).append(testNumber).append("Correct");
+            code.append(signature.getParameters().get(i).getName()).append(testNumber).append("Copy");
             if (i < signature.getParameters().size() - 1) {
                 code.append(", ");
             }
         }
-        code.append(");\n\n");
         
-        // Deep copy for user solution
-        code.append("        // Deep copy for user solution\n");
-        for (Parameter param : signature.getParameters()) {
-            code.append("        const ").append(param.getName()).append(testNumber)
-                .append("User = JSON.parse(JSON.stringify(")
-                .append(param.getName()).append(testNumber).append("));\n");
-        }
+        code.append(");\n");
+        code.append("        const endTime = Date.now();\n");
+        code.append("        const executionTime = endTime - startTime;\n\n");
         
-        code.append("\n");
-        
-        // Call USER solution
-        code.append("        const actual = userSolution").append(testNumber)
-            .append(".").append(signature.getMethodName()).append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            code.append(signature.getParameters().get(i).getName()).append(testNumber).append("User");
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(");\n\n");
-        
-        // Print results
         code.append("        console.log(\"TEST_CASE_START\");\n");
-        code.append("        console.log(`EXPECTED_OUTPUT : ${expected !== null && expected !== undefined ? expected : 'null'}`);\n");
-        code.append("        console.log(`USER_OUTPUT : ${actual !== null && actual !== undefined ? actual : 'null'}`);\n");
+        code.append("        console.log(`TEST_CASE_ID : ").append(testNumber).append("`);\n");
+        code.append("        console.log(`EXPECTED_OUTPUT : ").append(testcase.getExpectedOutput()).append("`);\n");
+        code.append("        console.log(`USER_OUTPUT : ${result").append(testNumber)
+            .append(" !== null && result").append(testNumber).append(" !== undefined ? result")
+            .append(testNumber).append(" : 'null'}`);\n");
+        code.append("        console.log(`EXECUTION_TIME : ${executionTime}`);\n");
         code.append("        console.log(\"TEST_CASE_END\");\n");
         
         code.append("    } catch (e) {\n");
         code.append("        console.log(\"TEST_CASE_START\");\n");
+        code.append("        console.log(`TEST_CASE_ID : ").append(testNumber).append("`);\n");
+        code.append("        console.log(`EXPECTED_OUTPUT : ").append(testcase.getExpectedOutput()).append("`);\n");
         code.append("        console.log(`ERROR : ${e.message}`);\n");
+        code.append("        console.log(\"EXECUTION_TIME : 0\");\n");
         code.append("        console.log(\"TEST_CASE_END\");\n");
         code.append("    }\n");
         code.append("}\n\n");

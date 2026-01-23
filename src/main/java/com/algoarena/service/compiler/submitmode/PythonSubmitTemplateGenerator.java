@@ -1,7 +1,7 @@
-// src/main/java/com/algoarena/service/compiler/runmode/PythonTemplateGenerator.java
-package com.algoarena.service.compiler.runmode;
+// src/main/java/com/algoarena/service/compiler/submitmode/PythonSubmitTemplateGenerator.java
+package com.algoarena.service.compiler.submitmode;
 
-import com.algoarena.dto.compiler.runmode.RunTestCaseInput;
+import com.algoarena.model.Question;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -9,27 +9,22 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
-public class PythonTemplateGenerator {
+public class PythonSubmitTemplateGenerator {
 
-    public String generateRunTemplate(
-            String correctSolution,
+    public String generateSubmitTemplate(
             String userCode,
-            List<RunTestCaseInput> testCases,
+            List<Question.Testcase> testcases,
             String methodName) {
         
-        MethodSignature signature = extractMethodSignature(correctSolution, methodName);
+        MethodSignature signature = extractMethodSignature(userCode, methodName);
         
         StringBuilder template = new StringBuilder();
         
         // Imports
         template.append("from typing import List, Optional\n");
         template.append("import sys\n");
-        template.append("import copy\n\n");
-        
-        // Correct solution
-        template.append("# ===== CORRECT SOLUTION =====\n");
-        template.append(correctSolution.replace("class Solution:", "class CorrectSolution:"));
-        template.append("\n\n");
+        template.append("import copy\n");
+        template.append("import time\n\n");
         
         // User solution
         template.append("# ===== USER SOLUTION =====\n");
@@ -37,22 +32,22 @@ public class PythonTemplateGenerator {
         template.append("\n\n");
         
         // Main execution
-        template.append(generateMainExecution(signature, testCases));
+        template.append(generateMainExecution(signature, testcases));
         
         return template.toString();
     }
 
-    private MethodSignature extractMethodSignature(String correctSolution, String methodName) {
+    private MethodSignature extractMethodSignature(String userCode, String methodName) {
         String patternString = "def\\s+" + 
                                Pattern.quote(methodName) + 
                                "\\s*\\(self(?:,\\s*([^)]*))?\\)(?:\\s*->\\s*(\\w+(?:\\[.*?\\])?))?\\s*:";
         
         Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(correctSolution);
+        Matcher matcher = pattern.matcher(userCode);
         
         if (!matcher.find()) {
             throw new IllegalArgumentException(
-                "Could not find method '" + methodName + "' in correct solution");
+                "Could not find method '" + methodName + "' in user code");
         }
         
         String paramsString = matcher.group(1);
@@ -75,114 +70,81 @@ public class PythonTemplateGenerator {
         return new MethodSignature(returnType, methodName, parameters);
     }
 
-    // ✅ UPDATED: Each test case creates fresh instances
-    private String generateMainExecution(MethodSignature signature, List<RunTestCaseInput> testCases) {
+    private String generateMainExecution(MethodSignature signature, List<Question.Testcase> testcases) {
         StringBuilder main = new StringBuilder();
         
         main.append("if __name__ == \"__main__\":\n");
         
-        // Generate each test case
-        for (int i = 0; i < testCases.size(); i++) {
-            main.append(generateTestCase(testCases.get(i), i + 1, signature));
+        for (Question.Testcase testcase : testcases) {
+            main.append(generateTestCase(testcase, signature));
         }
         
         return main.toString();
     }
 
-    // ✅ UPDATED: Fresh instances + deep copy per test case
-    private String generateTestCase(RunTestCaseInput testCase, int testNumber, MethodSignature signature) {
+    private String generateTestCase(Question.Testcase testcase, MethodSignature signature) {
         StringBuilder code = new StringBuilder();
         
+        int testNumber = testcase.getId();
         code.append("    # ===== TEST CASE ").append(testNumber).append(" =====\n");
         
-        Map<String, Object> inputs = testCase.getInput();
+        Map<String, Object> inputs = testcase.getInput();
         
-        // Generate base variables
+        // Generate variables
         for (Parameter param : signature.getParameters()) {
             Object value = inputs.get(param.getName());
             String pythonCode = convertToPythonCode(value);
-            code.append("    ").append(param.getName()).append(testNumber)
-                .append(" = ").append(pythonCode).append("\n");
+            code.append("    ").append(param.getName()).append(testNumber).append(" = ").append(pythonCode).append("\n");
         }
         
         code.append("\n");
         code.append("    try:\n");
+        code.append("        solution").append(testNumber).append(" = Solution()\n");
         
-        // ✅ CREATE FRESH INSTANCES
-        code.append("        correct_solution").append(testNumber).append(" = CorrectSolution()\n");
-        code.append("        user_solution").append(testNumber).append(" = Solution()\n\n");
-        
-        // Deep copies for correct solution
-        code.append("        # Deep copy for correct solution\n");
+        // Deep copy parameters
         for (Parameter param : signature.getParameters()) {
             if (param.getType().contains("List")) {
                 code.append("        ").append(param.getName()).append(testNumber)
-                    .append("_correct = copy.deepcopy(")
-                    .append(param.getName()).append(testNumber).append(")\n");
+                    .append("Copy = copy.deepcopy(").append(param.getName()).append(testNumber).append(")\n");
             }
         }
         
-        code.append("\n");
-        
-        // Call CORRECT solution
-        code.append("        expected = correct_solution").append(testNumber)
+        code.append("        start_time = time.time()\n");
+        code.append("        result").append(testNumber).append(" = solution").append(testNumber)
             .append(".").append(signature.getMethodName()).append("(");
+        
         for (int i = 0; i < signature.getParameters().size(); i++) {
             String paramName = signature.getParameters().get(i).getName() + testNumber;
             String paramType = signature.getParameters().get(i).getType();
             
             if (paramType.contains("List")) {
-                code.append(paramName).append("_correct");
-            } else {
-                code.append(paramName);
+                paramName += "Copy";
             }
             
+            code.append(paramName);
             if (i < signature.getParameters().size() - 1) {
                 code.append(", ");
             }
         }
+        
         code.append(")\n");
+        code.append("        end_time = time.time()\n");
+        code.append("        execution_time = int((end_time - start_time) * 1000)\n\n");
         
-        // Deep copies for user solution
-        code.append("\n        # Deep copy for user solution\n");
-        for (Parameter param : signature.getParameters()) {
-            if (param.getType().contains("List")) {
-                code.append("        ").append(param.getName()).append(testNumber)
-                    .append("_user = copy.deepcopy(")
-                    .append(param.getName()).append(testNumber).append(")\n");
-            }
-        }
-        
-        code.append("\n");
-        
-        // Call USER solution
-        code.append("        actual = user_solution").append(testNumber)
-            .append(".").append(signature.getMethodName()).append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            String paramName = signature.getParameters().get(i).getName() + testNumber;
-            String paramType = signature.getParameters().get(i).getType();
-            
-            if (paramType.contains("List")) {
-                code.append(paramName).append("_user");
-            } else {
-                code.append(paramName);
-            }
-            
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(")\n\n");
-        
-        // Print results
         code.append("        print(\"TEST_CASE_START\")\n");
-        code.append("        print(f\"EXPECTED_OUTPUT : {expected if expected is not None else 'None'}\")\n");
-        code.append("        print(f\"USER_OUTPUT : {actual if actual is not None else 'None'}\")\n");
+        code.append("        print(f\"TEST_CASE_ID : ").append(testNumber).append("\")\n");
+        code.append("        print(f\"EXPECTED_OUTPUT : ").append(testcase.getExpectedOutput()).append("\")\n");
+        code.append("        print(f\"USER_OUTPUT : {result").append(testNumber).append(" if result")
+            .append(testNumber).append(" is not None else 'None'}\")\n");
+        code.append("        print(f\"EXECUTION_TIME : {execution_time}\")\n");
         code.append("        print(\"TEST_CASE_END\")\n");
         
         code.append("    except Exception as e:\n");
         code.append("        print(\"TEST_CASE_START\")\n");
+        code.append("        print(f\"TEST_CASE_ID : ").append(testNumber).append("\")\n");
+        code.append("        print(f\"EXPECTED_OUTPUT : ").append(testcase.getExpectedOutput()).append("\")\n");
         code.append("        print(f\"ERROR : {str(e)}\")\n");
+        code.append("        print(\"EXECUTION_TIME : 0\")\n");
         code.append("        print(\"TEST_CASE_END\")\n\n");
         
         return code.toString();

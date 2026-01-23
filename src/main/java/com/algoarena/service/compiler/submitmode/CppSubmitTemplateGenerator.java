@@ -1,8 +1,7 @@
-// src/main/java/com/algoarena/service/compiler/runmode/CppTemplateGenerator.java
+// src/main/java/com/algoarena/service/compiler/submitmode/CppSubmitTemplateGenerator.java
+package com.algoarena.service.compiler.submitmode;
 
-package com.algoarena.service.compiler.runmode;
-
-import com.algoarena.dto.compiler.runmode.RunTestCaseInput;
+import com.algoarena.model.Question;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -10,18 +9,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
-public class CppTemplateGenerator {
+public class CppSubmitTemplateGenerator {
 
-    public String generateRunTemplate(
-            String correctSolution,
+    public String generateSubmitTemplate(
             String userCode,
-            List<RunTestCaseInput> testCases,
+            List<Question.Testcase> testcases,
             String methodName) {
-
-        MethodSignature signature = extractMethodSignature(correctSolution, methodName);
-
+        
+        MethodSignature signature = extractMethodSignature(userCode, methodName);
+        
         StringBuilder template = new StringBuilder();
-
+        
         // Includes
         template.append("#include <iostream>\n");
         template.append("#include <vector>\n");
@@ -29,35 +27,32 @@ public class CppTemplateGenerator {
         template.append("#include <set>\n");
         template.append("#include <map>\n");
         template.append("#include <algorithm>\n");
-        template.append("using namespace std;\n\n");
-
-        // Correct solution
-        template.append("// ===== CORRECT SOLUTION =====\n");
-        template.append(correctSolution.replace("class Solution", "class CorrectSolution"));
-        template.append("\n\n");
-
+        template.append("#include <chrono>\n");
+        template.append("using namespace std;\n");
+        template.append("using namespace std::chrono;\n\n");
+        
         // User solution
         template.append("// ===== USER SOLUTION =====\n");
         template.append(userCode);
         template.append("\n\n");
-
+        
         // Main function
-        template.append(generateMainFunction(signature, testCases));
-
+        template.append(generateMainFunction(signature, testcases));
+        
         return template.toString();
     }
 
-    private MethodSignature extractMethodSignature(String correctSolution, String methodName) {
+    private MethodSignature extractMethodSignature(String userCode, String methodName) {
         String patternString = "(\\w+(?:<[^>]+>)?(?:\\s*&)?(?:\\s*\\*)?(?:\\[\\])?(?:&)?)\\s+" + 
                                Pattern.quote(methodName) + 
                                "\\s*\\(([^)]*)\\)";
         
         Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(correctSolution);
+        Matcher matcher = pattern.matcher(userCode);
 
         if (!matcher.find()) {
             throw new IllegalArgumentException(
-                "Could not find method '" + methodName + "' in correct solution");
+                "Could not find method '" + methodName + "' in user code");
         }
 
         String returnType = matcher.group(1).trim();
@@ -82,15 +77,13 @@ public class CppTemplateGenerator {
         return new MethodSignature(returnType, methodName, parameters);
     }
 
-    // ✅ UPDATED: Create fresh instances per test case
-    private String generateMainFunction(MethodSignature signature, List<RunTestCaseInput> testCases) {
+    private String generateMainFunction(MethodSignature signature, List<Question.Testcase> testcases) {
         StringBuilder main = new StringBuilder();
 
         main.append("int main() {\n");
 
-        // Generate each test case with fresh instances
-        for (int i = 0; i < testCases.size(); i++) {
-            main.append(generateTestCase(testCases.get(i), i + 1, signature));
+        for (Question.Testcase testcase : testcases) {
+            main.append(generateTestCase(testcase, signature));
         }
 
         main.append("    return 0;\n");
@@ -99,21 +92,16 @@ public class CppTemplateGenerator {
         return main.toString();
     }
 
-    // ✅ UPDATED: Fresh instances + deep copy per test case
-    private String generateTestCase(RunTestCaseInput testCase, int testNumber, MethodSignature signature) {
+    private String generateTestCase(Question.Testcase testcase, MethodSignature signature) {
         StringBuilder code = new StringBuilder();
 
+        int testNumber = testcase.getId();
         code.append("    // ===== TEST CASE ").append(testNumber).append(" =====\n");
         code.append("    {\n");
 
-        Map<String, Object> inputs = testCase.getInput();
+        Map<String, Object> inputs = testcase.getInput();
 
-        // ✅ CREATE FRESH INSTANCES
-        code.append("        CorrectSolution correctSolution").append(testNumber).append(";\n");
-        code.append("        Solution userSolution").append(testNumber).append(";\n\n");
-
-        // Generate variables for CORRECT solution
-        code.append("        // Variables for correct solution\n");
+        // Generate variables with deep copy
         for (Parameter param : signature.getParameters()) {
             Object value = inputs.get(param.getName());
             String cppCode = convertToCppCode(value, param.getType());
@@ -124,12 +112,12 @@ public class CppTemplateGenerator {
                     .append(" ")
                     .append(param.getName())
                     .append(testNumber)
-                    .append("Correct = ")
+                    .append(" = ")
                     .append(cppCode)
                     .append(";\n");
         }
 
-        // ✅ DEEP COPY for correct solution (vectors)
+        // Deep copy for fresh instance isolation
         for (Parameter param : signature.getParameters()) {
             if (param.getType().contains("vector")) {
                 String declType = param.getType().replaceAll("&|\\*", "").trim();
@@ -138,59 +126,26 @@ public class CppTemplateGenerator {
                         .append(" ")
                         .append(param.getName())
                         .append(testNumber)
-                        .append("CorrectCopy = ")
+                        .append("Copy = ")
                         .append(param.getName())
                         .append(testNumber)
-                        .append("Correct;\n");
-            }
-        }
-
-        code.append("\n");
-
-        // Generate variables for USER solution
-        code.append("        // Variables for user solution\n");
-        for (Parameter param : signature.getParameters()) {
-            Object value = inputs.get(param.getName());
-            String cppCode = convertToCppCode(value, param.getType());
-            String declType = param.getType().replaceAll("&|\\*", "").trim();
-
-            code.append("        ")
-                    .append(declType)
-                    .append(" ")
-                    .append(param.getName())
-                    .append(testNumber)
-                    .append("User = ")
-                    .append(cppCode)
-                    .append(";\n");
-        }
-
-        // ✅ DEEP COPY for user solution (vectors)
-        for (Parameter param : signature.getParameters()) {
-            if (param.getType().contains("vector")) {
-                String declType = param.getType().replaceAll("&|\\*", "").trim();
-                code.append("        ")
-                        .append(declType)
-                        .append(" ")
-                        .append(param.getName())
-                        .append(testNumber)
-                        .append("UserCopy = ")
-                        .append(param.getName())
-                        .append(testNumber)
-                        .append("User;\n");
+                        .append(";\n");
             }
         }
 
         code.append("\n");
         code.append("        try {\n");
-
-        // Call CORRECT solution
+        code.append("            Solution solution").append(testNumber).append(";\n");
+        code.append("            auto start = high_resolution_clock::now();\n");
         code.append("            ")
                 .append(signature.getReturnType())
-                .append(" expected = correctSolution").append(testNumber).append(".")
+                .append(" result").append(testNumber)
+                .append(" = solution").append(testNumber).append(".")
                 .append(signature.getMethodName())
                 .append("(");
+
         for (int i = 0; i < signature.getParameters().size(); i++) {
-            String paramName = signature.getParameters().get(i).getName() + testNumber + "Correct";
+            String paramName = signature.getParameters().get(i).getName() + testNumber;
             if (signature.getParameters().get(i).getType().contains("vector")) {
                 paramName += "Copy";
             }
@@ -199,35 +154,24 @@ public class CppTemplateGenerator {
                 code.append(", ");
             }
         }
+
         code.append(");\n");
+        code.append("            auto end = high_resolution_clock::now();\n");
+        code.append("            auto duration = duration_cast<milliseconds>(end - start).count();\n\n");
 
-        // Call USER solution
-        code.append("            ")
-                .append(signature.getReturnType())
-                .append(" actual = userSolution").append(testNumber).append(".")
-                .append(signature.getMethodName())
-                .append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            String paramName = signature.getParameters().get(i).getName() + testNumber + "User";
-            if (signature.getParameters().get(i).getType().contains("vector")) {
-                paramName += "Copy";
-            }
-            code.append(paramName);
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(");\n\n");
-
-        // Print results
         code.append("            cout << \"TEST_CASE_START\" << endl;\n");
-        code.append("            cout << \"EXPECTED_OUTPUT : \" << expected << endl;\n");
-        code.append("            cout << \"USER_OUTPUT : \" << actual << endl;\n");
+        code.append("            cout << \"TEST_CASE_ID : ").append(testNumber).append("\" << endl;\n");
+        code.append("            cout << \"EXPECTED_OUTPUT : ").append(testcase.getExpectedOutput()).append("\" << endl;\n");
+        code.append("            cout << \"USER_OUTPUT : \" << result").append(testNumber).append(" << endl;\n");
+        code.append("            cout << \"EXECUTION_TIME : \" << duration << endl;\n");
         code.append("            cout << \"TEST_CASE_END\" << endl;\n");
 
         code.append("        } catch (const exception& e) {\n");
         code.append("            cout << \"TEST_CASE_START\" << endl;\n");
+        code.append("            cout << \"TEST_CASE_ID : ").append(testNumber).append("\" << endl;\n");
+        code.append("            cout << \"EXPECTED_OUTPUT : ").append(testcase.getExpectedOutput()).append("\" << endl;\n");
         code.append("            cout << \"ERROR : \" << e.what() << endl;\n");
+        code.append("            cout << \"EXECUTION_TIME : 0\" << endl;\n");
         code.append("            cout << \"TEST_CASE_END\" << endl;\n");
         code.append("        }\n");
 
