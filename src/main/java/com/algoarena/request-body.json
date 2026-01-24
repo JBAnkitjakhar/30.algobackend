@@ -1,0 +1,21 @@
+{
+  "code": "class Solution {\n    public static void dfs(int[][] grid, int i, int j, boolean[][] mark, StringBuilder sb, char dir) {\n        mark[i][j] = true;\n        sb.append(dir);\n\n        int[][] directions = {{-1, 0}, {0, -1}, {1, 0}, {0, 1}};\n        char[] ch = {'t', 'l', 'd', 'r'};\n\n        for(int k = 0; k < 4; k++) {\n            int newrow = i + directions[k][0];\n            int newcol = j + directions[k][1];\n\n            if(newrow >= 0 && newrow < grid.length && \n               newcol >= 0 && newcol < grid[0].length && \n               grid[newrow][newcol] == 1 && !mark[newrow][newcol]) {\n                dfs(grid, newrow, newcol, mark, sb, ch[k]);\n            }\n        }\n\n        sb.append('b');\n    }\n\n    public int numDistinctIslands(int[][] grid) {\n        int m = grid.length;\n        if (m == 0) return 0;\n        int n = grid[0].length;\n\n        Set<String> set = new HashSet<>();\n        boolean[][] mark = new boolean[m][n];\n\n        for (int i = 0; i < m; i++) {\n            for (int j = 0; j < n; j++) {\n                if (grid[i][j] == 1 && !mark[i][j]) {\n                    StringBuilder sb = new StringBuilder();\n                    dfs(grid, i, j, mark, sb, 'o');\n                    set.add(sb.toString());\n                }\n            }\n        }\n        return set.size();\n    }\n}",
+  "language": "java",
+  "testCases": [
+    {
+      "input": {
+        "grid": [[1,1,0,0,0],[1,1,0,0,0],[0,0,0,1,1],[0,0,0,1,1]]
+      }
+    },
+    {
+      "input": {
+        "grid": [[1,1,1],[0,1,0],[1,1,1]]
+      }
+    },
+    {
+      "input": {
+        "grid": [[0,0,0],[0,0,0],[0,0,0]]
+      }
+    }
+  ]
+}
