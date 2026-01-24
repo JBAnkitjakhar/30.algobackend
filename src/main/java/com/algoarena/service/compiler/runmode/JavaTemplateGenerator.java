@@ -16,230 +16,427 @@ public class JavaTemplateGenerator {
             String userCode,
             List<RunTestCaseInput> testCases,
             String methodName) {
-        
+
         MethodSignature signature = extractMethodSignature(correctSolution, methodName);
-        
+
         StringBuilder template = new StringBuilder();
-        
-        template.append("import java.util.*;\n\n");
+
+        // Imports - comprehensive for DSA problems
+        template.append("import java.util.*;\n");
+        template.append("import java.util.stream.*;\n\n");
+
+        // Main class MUST come first for Piston to find main()
         template.append(generateMainClass(signature, testCases));
-        
-        template.append("\n// ===== CORRECT SOLUTION =====\n");
+
+        // Helper class for output formatting (after Main)
+        template.append(generateOutputHelper());
+        template.append("\n");
+
+        template.append("// ===== CORRECT SOLUTION =====\n");
         template.append(correctSolution.replace("class Solution", "class CorrectSolution"));
         template.append("\n\n");
-        
+
         template.append("// ===== USER SOLUTION =====\n");
         template.append(userCode);
         template.append("\n");
-        
+
         return template.toString();
     }
 
+    /**
+     * Helper class to format outputs consistently for comparison
+     */
+    private String generateOutputHelper() {
+        return """
+class OutputHelper {
+    public static String format(Object obj) {
+        if (obj == null) return "null";
+
+        // Handle primitive arrays
+        if (obj instanceof int[]) {
+            return Arrays.toString((int[]) obj);
+        }
+        if (obj instanceof int[][]) {
+            return Arrays.deepToString((int[][]) obj);
+        }
+        if (obj instanceof long[]) {
+            return Arrays.toString((long[]) obj);
+        }
+        if (obj instanceof double[]) {
+            return Arrays.toString((double[]) obj);
+        }
+        if (obj instanceof float[]) {
+            return Arrays.toString((float[]) obj);
+        }
+        if (obj instanceof boolean[]) {
+            return Arrays.toString((boolean[]) obj);
+        }
+        if (obj instanceof char[]) {
+            return Arrays.toString((char[]) obj);
+        }
+        if (obj instanceof String[]) {
+            return Arrays.toString((String[]) obj);
+        }
+        if (obj instanceof Object[]) {
+            return Arrays.deepToString((Object[]) obj);
+        }
+
+        // Handle List types (including nested)
+        if (obj instanceof List) {
+            return formatList((List<?>) obj);
+        }
+
+        // Handle other objects
+        return String.valueOf(obj);
+    }
+
+    private static String formatList(List<?> list) {
+        if (list == null) return "null";
+        if (list.isEmpty()) return "[]";
+
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < list.size(); i++) {
+            Object item = list.get(i);
+            if (item instanceof List) {
+                sb.append(formatList((List<?>) item));
+            } else {
+                sb.append(item);
+            }
+            if (i < list.size() - 1) sb.append(", ");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+}
+""";
+    }
+
+    /**
+     * Extract method signature with support for generic types like List<List<Integer>>
+     */
     private MethodSignature extractMethodSignature(String correctSolution, String methodName) {
-        String patternString = "public\\s+(\\w+(?:\\[\\])*?)\\s+" + 
-                               Pattern.quote(methodName) + 
-                               "\\s*\\(([^)]*)\\)";
-        
+        // Pattern to match: public ReturnType methodName(params)
+        // ReturnType can be: int, int[], List<Integer>, List<List<Integer>>, etc.
+        String patternString = "public\\s+(" +
+                "(?:List|Set|Map|Queue|Deque|Stack|TreeNode|ListNode|Optional)" +
+                "(?:<[^>]+(?:<[^>]+>)?[^>]*>)?" +  // Generic types with possible nesting
+                "|\\w+(?:\\[\\])*" +                // Primitive types and arrays
+                ")\\s+" +
+                Pattern.quote(methodName) +
+                "\\s*\\(([^)]*)\\)";
+
         Pattern pattern = Pattern.compile(patternString);
         Matcher matcher = pattern.matcher(correctSolution);
-        
+
         if (!matcher.find()) {
             throw new IllegalArgumentException(
                 "Could not find method '" + methodName + "' in correct solution");
         }
-        
+
         String returnType = matcher.group(1).trim();
         String paramsString = matcher.group(2).trim();
-        
+
+        List<Parameter> parameters = parseParameters(paramsString);
+
+        return new MethodSignature(returnType, methodName, parameters);
+    }
+
+    /**
+     * Parse method parameters, handling generic types
+     */
+    private List<Parameter> parseParameters(String paramsString) {
         List<Parameter> parameters = new ArrayList<>();
-        
-        if (!paramsString.isEmpty()) {
-            String[] paramPairs = paramsString.split(",");
-            for (String pair : paramPairs) {
-                String[] parts = pair.trim().split("\\s+");
-                if (parts.length >= 2) {
-                    String type = parts[0];
-                    String name = parts[1];
-                    parameters.add(new Parameter(type, name));
-                }
+
+        if (paramsString == null || paramsString.isEmpty()) {
+            return parameters;
+        }
+
+        // Split by comma, but respect generic angle brackets
+        List<String> paramPairs = splitParameters(paramsString);
+
+        for (String pair : paramPairs) {
+            pair = pair.trim();
+            if (pair.isEmpty()) continue;
+
+            // Find the last space that separates type from name
+            int lastSpace = findTypeNameSeparator(pair);
+
+            if (lastSpace > 0) {
+                String type = pair.substring(0, lastSpace).trim();
+                String name = pair.substring(lastSpace + 1).trim();
+                parameters.add(new Parameter(type, name));
             }
         }
-        
-        return new MethodSignature(returnType, methodName, parameters);
+
+        return parameters;
+    }
+
+    /**
+     * Split parameters respecting generic brackets
+     */
+    private List<String> splitParameters(String paramsString) {
+        List<String> params = new ArrayList<>();
+        int depth = 0;
+        StringBuilder current = new StringBuilder();
+
+        for (char c : paramsString.toCharArray()) {
+            if (c == '<') depth++;
+            else if (c == '>') depth--;
+            else if (c == ',' && depth == 0) {
+                params.add(current.toString());
+                current = new StringBuilder();
+                continue;
+            }
+            current.append(c);
+        }
+
+        if (current.length() > 0) {
+            params.add(current.toString());
+        }
+
+        return params;
+    }
+
+    /**
+     * Find the separator between type and parameter name
+     */
+    private int findTypeNameSeparator(String pair) {
+        int depth = 0;
+        int lastSpace = -1;
+
+        for (int i = 0; i < pair.length(); i++) {
+            char c = pair.charAt(i);
+            if (c == '<') depth++;
+            else if (c == '>') depth--;
+            else if (c == ' ' && depth == 0) {
+                lastSpace = i;
+            }
+        }
+
+        return lastSpace;
     }
 
     private String generateMainClass(MethodSignature signature, List<RunTestCaseInput> testCases) {
         StringBuilder main = new StringBuilder();
-        
+
         main.append("public class Main {\n");
         main.append("    public static void main(String[] args) {\n\n");
-        
+
         // Generate each test case
         for (int i = 0; i < testCases.size(); i++) {
             main.append(generateTestCase(testCases.get(i), i + 1, signature));
         }
-        
+
         main.append("    }\n");
         main.append("}\n");
-        
+
         return main.toString();
     }
 
-    // ✅ UPDATED: Fresh instances + deep copy per test case
     private String generateTestCase(RunTestCaseInput testCase, int testNumber, MethodSignature signature) {
         StringBuilder code = new StringBuilder();
-        
+
         code.append("        // ===== TEST CASE ").append(testNumber).append(" =====\n");
         code.append("        try {\n");
-        
-        // ✅ CREATE FRESH INSTANCES
+
+        // Create fresh instances
         code.append("            CorrectSolution correctSolution").append(testNumber).append(" = new CorrectSolution();\n");
         code.append("            Solution userSolution").append(testNumber).append(" = new Solution();\n\n");
-        
+
         Map<String, Object> inputs = testCase.getInput();
-        
-        // Generate variables for CORRECT solution
+
+        // Generate variables for CORRECT solution with deep copy
         code.append("            // Variables for correct solution\n");
         for (Parameter param : signature.getParameters()) {
             String varName = param.getName() + testNumber + "Correct";
             Object value = inputs.get(param.getName());
             String javaCode = convertToJavaCode(value, param.getType());
-            
+
             code.append("            ")
                 .append(param.getType())
                 .append(" ")
                 .append(varName)
                 .append(" = ")
-                .append(javaCode)
+                .append(deepCopyExpression(javaCode, param.getType()))
                 .append(";\n");
         }
-        
-        // ✅ DEEP COPY for correct solution if needed
-        for (Parameter param : signature.getParameters()) {
-            if (param.getType().equals("int[][]")) {
-                String varName = param.getName() + testNumber + "Correct";
-                code.append("            // Deep copy for correct solution\n");
-                code.append("            int[][] ").append(varName).append("Copy = new int[")
-                    .append(varName).append(".length][];\n");
-                code.append("            for (int i = 0; i < ").append(varName).append(".length; i++) {\n");
-                code.append("                ").append(varName).append("Copy[i] = java.util.Arrays.copyOf(")
-                    .append(varName).append("[i], ").append(varName).append("[i].length);\n");
-                code.append("            }\n");
-            } else if (param.getType().equals("int[]")) {
-                String varName = param.getName() + testNumber + "Correct";
-                code.append("            // Deep copy for correct solution\n");
-                code.append("            int[] ").append(varName).append("Copy = java.util.Arrays.copyOf(")
-                    .append(varName).append(", ").append(varName).append(".length);\n");
-            }
-        }
-        
+
         code.append("\n");
-        
-        // Generate variables for USER solution
+
+        // Generate variables for USER solution with deep copy
         code.append("            // Variables for user solution\n");
         for (Parameter param : signature.getParameters()) {
             String varName = param.getName() + testNumber + "User";
             Object value = inputs.get(param.getName());
             String javaCode = convertToJavaCode(value, param.getType());
-            
+
             code.append("            ")
                 .append(param.getType())
                 .append(" ")
                 .append(varName)
                 .append(" = ")
-                .append(javaCode)
+                .append(deepCopyExpression(javaCode, param.getType()))
                 .append(";\n");
         }
-        
-        // ✅ DEEP COPY for user solution if needed
-        for (Parameter param : signature.getParameters()) {
-            if (param.getType().equals("int[][]")) {
-                String varName = param.getName() + testNumber + "User";
-                code.append("            // Deep copy for user solution\n");
-                code.append("            int[][] ").append(varName).append("Copy = new int[")
-                    .append(varName).append(".length][];\n");
-                code.append("            for (int i = 0; i < ").append(varName).append(".length; i++) {\n");
-                code.append("                ").append(varName).append("Copy[i] = java.util.Arrays.copyOf(")
-                    .append(varName).append("[i], ").append(varName).append("[i].length);\n");
-                code.append("            }\n");
-            } else if (param.getType().equals("int[]")) {
-                String varName = param.getName() + testNumber + "User";
-                code.append("            // Deep copy for user solution\n");
-                code.append("            int[] ").append(varName).append("Copy = java.util.Arrays.copyOf(")
-                    .append(varName).append(", ").append(varName).append(".length);\n");
-            }
-        }
-        
+
         code.append("\n");
-        
+
         // Call CORRECT solution
         code.append("            ")
             .append(signature.getReturnType())
             .append(" expected = correctSolution").append(testNumber).append(".")
             .append(signature.getMethodName())
             .append("(");
-        
+
         for (int i = 0; i < signature.getParameters().size(); i++) {
             String paramName = signature.getParameters().get(i).getName() + testNumber + "Correct";
-            String paramType = signature.getParameters().get(i).getType();
-            if (paramType.equals("int[][]") || paramType.equals("int[]")) {
-                paramName += "Copy";
-            }
             code.append(paramName);
             if (i < signature.getParameters().size() - 1) {
                 code.append(", ");
             }
         }
         code.append(");\n\n");
-        
+
         // Call USER solution
         code.append("            ")
             .append(signature.getReturnType())
             .append(" actual = userSolution").append(testNumber).append(".")
             .append(signature.getMethodName())
             .append("(");
-        
+
         for (int i = 0; i < signature.getParameters().size(); i++) {
             String paramName = signature.getParameters().get(i).getName() + testNumber + "User";
-            String paramType = signature.getParameters().get(i).getType();
-            if (paramType.equals("int[][]") || paramType.equals("int[]")) {
-                paramName += "Copy";
-            }
             code.append(paramName);
             if (i < signature.getParameters().size() - 1) {
                 code.append(", ");
             }
         }
         code.append(");\n\n");
-        
-        // Print results
+
+        // Print results using OutputHelper for proper formatting
         code.append("            System.out.println(\"TEST_CASE_START\");\n");
-        code.append("            System.out.println(\"EXPECTED_OUTPUT : \" + expected);\n");
-        code.append("            System.out.println(\"USER_OUTPUT : \" + actual);\n");
+        code.append("            System.out.println(\"EXPECTED_OUTPUT : \" + OutputHelper.format(expected));\n");
+        code.append("            System.out.println(\"USER_OUTPUT : \" + OutputHelper.format(actual));\n");
         code.append("            System.out.println(\"TEST_CASE_END\");\n\n");
-        
+
         // Exception handling
         code.append("        } catch (Exception e) {\n");
         code.append("            System.out.println(\"TEST_CASE_START\");\n");
         code.append("            System.out.println(\"ERROR : \" + e.getMessage());\n");
         code.append("            System.out.println(\"TEST_CASE_END\");\n");
         code.append("        }\n\n");
-        
+
         return code.toString();
     }
 
+    /**
+     * Generate deep copy expression based on type
+     * Keep it simple - only deep copy known primitive array/list types
+     */
+    private String deepCopyExpression(String valueExpr, String type) {
+        // CRITICAL: Never try to deep copy null
+        if (valueExpr.equals("null")) {
+            return "null";
+        }
+
+        // Only deep copy known primitive types - for everything else, pass as-is
+        switch (type) {
+            case "int[]":
+            case "long[]":
+            case "double[]":
+            case "float[]":
+            case "char[]":
+            case "boolean[]":
+            case "String[]":
+                return valueExpr + ".clone()";
+
+            case "int[][]":
+                return "Arrays.stream(" + valueExpr + ").map(int[]::clone).toArray(int[][]::new)";
+            case "char[][]":
+                return "Arrays.stream(" + valueExpr + ").map(char[]::clone).toArray(char[][]::new)";
+            case "String[][]":
+                return "Arrays.stream(" + valueExpr + ").map(String[]::clone).toArray(String[][]::new)";
+
+            case "List<Integer>":
+            case "List<Long>":
+            case "List<String>":
+            case "List<Double>":
+            case "List<Boolean>":
+                return "new ArrayList<>(" + valueExpr + ")";
+
+            case "List<List<Integer>>":
+            case "List<List<Long>>":
+            case "List<List<String>>":
+                return valueExpr + ".stream().map(ArrayList::new).collect(Collectors.toList())";
+
+            default:
+                // For any unknown/custom types, just pass as-is (no deep copy)
+                return valueExpr;
+        }
+    }
+
+    /**
+     * Convert Java object value to Java code literal
+     */
     private String convertToJavaCode(Object value, String type) {
         if (value == null) return "null";
-        
+
+        // Handle 2D arrays
         if (type.equals("int[][]")) {
-            return convert2DIntArray((List<?>) value);
+            return "new int[][] " + convert2DIntArray((List<?>) value);
         }
+        if (type.equals("char[][]")) {
+            return "new char[][] " + convert2DCharArray((List<?>) value);
+        }
+        if (type.equals("String[][]")) {
+            return "new String[][] " + convert2DStringArray((List<?>) value);
+        }
+
+        // Handle 1D arrays
         if (type.equals("int[]")) {
-            return convert1DIntArray((List<?>) value);
+            return "new int[] " + convert1DIntArray((List<?>) value);
+        }
+        if (type.equals("long[]")) {
+            return "new long[] " + convert1DLongArray((List<?>) value);
+        }
+        if (type.equals("double[]")) {
+            return "new double[] " + convert1DDoubleArray((List<?>) value);
+        }
+        if (type.equals("float[]")) {
+            return "new float[] " + convert1DFloatArray((List<?>) value);
         }
         if (type.equals("String[]")) {
-            return convertStringArray((List<?>) value);
+            return "new String[] " + convertStringArray((List<?>) value);
         }
+        if (type.equals("char[]")) {
+            return convert1DCharArray(value);
+        }
+        if (type.equals("boolean[]")) {
+            return "new boolean[] " + convert1DBooleanArray((List<?>) value);
+        }
+
+        // Handle List types
+        if (type.equals("List<Integer>")) {
+            return convertToIntegerList((List<?>) value);
+        }
+        if (type.equals("List<Long>")) {
+            return convertToLongList((List<?>) value);
+        }
+        if (type.equals("List<String>")) {
+            return convertToStringList((List<?>) value);
+        }
+        if (type.equals("List<List<Integer>>")) {
+            return convertTo2DIntegerList((List<?>) value);
+        }
+        if (type.equals("List<List<String>>")) {
+            return convertTo2DStringList((List<?>) value);
+        }
+        if (type.startsWith("List<")) {
+            // Generic list handling
+            return convertToGenericList((List<?>) value);
+        }
+
+        // Handle primitives
         if (type.equals("int") || type.equals("long") || type.equals("double") || type.equals("float")) {
             return String.valueOf(value);
         }
@@ -247,59 +444,280 @@ public class JavaTemplateGenerator {
             return String.valueOf(value);
         }
         if (type.equals("char")) {
-            return "'" + value + "'";
+            return "'" + escapeChar(String.valueOf(value)) + "'";
         }
         if (type.equals("String")) {
             return "\"" + escapeString(String.valueOf(value)) + "\"";
         }
+
         return String.valueOf(value);
     }
 
+    // ==================== Array Conversion Methods ====================
+
     private String convert2DIntArray(List<?> array) {
-        if (array == null || array.isEmpty()) return "new int[0][0]";
+        if (array == null || array.isEmpty()) return "{}";
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < array.size(); i++) {
             List<?> row = (List<?>) array.get(i);
             sb.append("{");
             for (int j = 0; j < row.size(); j++) {
                 sb.append(row.get(j));
-                if (j < row.size() - 1) sb.append(",");
+                if (j < row.size() - 1) sb.append(", ");
             }
             sb.append("}");
-            if (i < array.size() - 1) sb.append(",");
+            if (i < array.size() - 1) sb.append(", ");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String convert2DCharArray(List<?> array) {
+        if (array == null || array.isEmpty()) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < array.size(); i++) {
+            Object row = array.get(i);
+            sb.append("{");
+            if (row instanceof String) {
+                // Handle string as char array
+                String str = (String) row;
+                for (int j = 0; j < str.length(); j++) {
+                    sb.append("'").append(escapeChar(String.valueOf(str.charAt(j)))).append("'");
+                    if (j < str.length() - 1) sb.append(", ");
+                }
+            } else if (row instanceof List) {
+                List<?> chars = (List<?>) row;
+                for (int j = 0; j < chars.size(); j++) {
+                    sb.append("'").append(escapeChar(String.valueOf(chars.get(j)))).append("'");
+                    if (j < chars.size() - 1) sb.append(", ");
+                }
+            }
+            sb.append("}");
+            if (i < array.size() - 1) sb.append(", ");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String convert2DStringArray(List<?> array) {
+        if (array == null || array.isEmpty()) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < array.size(); i++) {
+            List<?> row = (List<?>) array.get(i);
+            sb.append("{");
+            for (int j = 0; j < row.size(); j++) {
+                sb.append("\"").append(escapeString(String.valueOf(row.get(j)))).append("\"");
+                if (j < row.size() - 1) sb.append(", ");
+            }
+            sb.append("}");
+            if (i < array.size() - 1) sb.append(", ");
         }
         sb.append("}");
         return sb.toString();
     }
 
     private String convert1DIntArray(List<?> array) {
-        if (array == null || array.isEmpty()) return "new int[0]";
+        if (array == null || array.isEmpty()) return "{}";
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < array.size(); i++) {
             sb.append(array.get(i));
-            if (i < array.size() - 1) sb.append(",");
+            if (i < array.size() - 1) sb.append(", ");
         }
         sb.append("}");
         return sb.toString();
+    }
+
+    private String convert1DLongArray(List<?> array) {
+        if (array == null || array.isEmpty()) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < array.size(); i++) {
+            sb.append(array.get(i)).append("L");
+            if (i < array.size() - 1) sb.append(", ");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String convert1DDoubleArray(List<?> array) {
+        if (array == null || array.isEmpty()) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < array.size(); i++) {
+            sb.append(array.get(i));
+            if (i < array.size() - 1) sb.append(", ");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String convert1DFloatArray(List<?> array) {
+        if (array == null || array.isEmpty()) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < array.size(); i++) {
+            sb.append(array.get(i)).append("f");
+            if (i < array.size() - 1) sb.append(", ");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String convert1DBooleanArray(List<?> array) {
+        if (array == null || array.isEmpty()) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < array.size(); i++) {
+            sb.append(array.get(i));
+            if (i < array.size() - 1) sb.append(", ");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String convert1DCharArray(Object value) {
+        if (value instanceof String) {
+            // Handle string as char array
+            String str = (String) value;
+            if (str.isEmpty()) return "new char[] {}";
+            StringBuilder sb = new StringBuilder("new char[] {");
+            for (int i = 0; i < str.length(); i++) {
+                sb.append("'").append(escapeChar(String.valueOf(str.charAt(i)))).append("'");
+                if (i < str.length() - 1) sb.append(", ");
+            }
+            sb.append("}");
+            return sb.toString();
+        } else if (value instanceof List) {
+            List<?> array = (List<?>) value;
+            if (array.isEmpty()) return "new char[] {}";
+            StringBuilder sb = new StringBuilder("new char[] {");
+            for (int i = 0; i < array.size(); i++) {
+                sb.append("'").append(escapeChar(String.valueOf(array.get(i)))).append("'");
+                if (i < array.size() - 1) sb.append(", ");
+            }
+            sb.append("}");
+            return sb.toString();
+        }
+        return "new char[] {}";
     }
 
     private String convertStringArray(List<?> array) {
-        if (array == null || array.isEmpty()) return "new String[0]";
+        if (array == null || array.isEmpty()) return "{}";
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < array.size(); i++) {
             sb.append("\"").append(escapeString(String.valueOf(array.get(i)))).append("\"");
-            if (i < array.size() - 1) sb.append(",");
+            if (i < array.size() - 1) sb.append(", ");
         }
         sb.append("}");
         return sb.toString();
     }
 
+    // ==================== List Conversion Methods ====================
+
+    private String convertToIntegerList(List<?> list) {
+        if (list == null || list.isEmpty()) return "new ArrayList<>()";
+        StringBuilder sb = new StringBuilder("new ArrayList<>(Arrays.asList(");
+        for (int i = 0; i < list.size(); i++) {
+            sb.append(list.get(i));
+            if (i < list.size() - 1) sb.append(", ");
+        }
+        sb.append("))");
+        return sb.toString();
+    }
+
+    private String convertToLongList(List<?> list) {
+        if (list == null || list.isEmpty()) return "new ArrayList<>()";
+        StringBuilder sb = new StringBuilder("new ArrayList<>(Arrays.asList(");
+        for (int i = 0; i < list.size(); i++) {
+            sb.append(list.get(i)).append("L");
+            if (i < list.size() - 1) sb.append(", ");
+        }
+        sb.append("))");
+        return sb.toString();
+    }
+
+    private String convertToStringList(List<?> list) {
+        if (list == null || list.isEmpty()) return "new ArrayList<>()";
+        StringBuilder sb = new StringBuilder("new ArrayList<>(Arrays.asList(");
+        for (int i = 0; i < list.size(); i++) {
+            sb.append("\"").append(escapeString(String.valueOf(list.get(i)))).append("\"");
+            if (i < list.size() - 1) sb.append(", ");
+        }
+        sb.append("))");
+        return sb.toString();
+    }
+
+    private String convertTo2DIntegerList(List<?> list) {
+        if (list == null || list.isEmpty()) return "new ArrayList<>()";
+        StringBuilder sb = new StringBuilder("new ArrayList<>(Arrays.asList(");
+        for (int i = 0; i < list.size(); i++) {
+            List<?> inner = (List<?>) list.get(i);
+            sb.append("new ArrayList<>(Arrays.asList(");
+            for (int j = 0; j < inner.size(); j++) {
+                sb.append(inner.get(j));
+                if (j < inner.size() - 1) sb.append(", ");
+            }
+            sb.append("))");
+            if (i < list.size() - 1) sb.append(", ");
+        }
+        sb.append("))");
+        return sb.toString();
+    }
+
+    private String convertTo2DStringList(List<?> list) {
+        if (list == null || list.isEmpty()) return "new ArrayList<>()";
+        StringBuilder sb = new StringBuilder("new ArrayList<>(Arrays.asList(");
+        for (int i = 0; i < list.size(); i++) {
+            List<?> inner = (List<?>) list.get(i);
+            sb.append("new ArrayList<>(Arrays.asList(");
+            for (int j = 0; j < inner.size(); j++) {
+                sb.append("\"").append(escapeString(String.valueOf(inner.get(j)))).append("\"");
+                if (j < inner.size() - 1) sb.append(", ");
+            }
+            sb.append("))");
+            if (i < list.size() - 1) sb.append(", ");
+        }
+        sb.append("))");
+        return sb.toString();
+    }
+
+    private String convertToGenericList(List<?> list) {
+        if (list == null || list.isEmpty()) return "new ArrayList<>()";
+
+        // Check if it's a nested list
+        if (!list.isEmpty() && list.get(0) instanceof List) {
+            return convertTo2DIntegerList(list); // Default to Integer for nested
+        }
+
+        // Check the type of elements
+        Object first = list.get(0);
+        if (first instanceof String) {
+            return convertToStringList(list);
+        }
+        return convertToIntegerList(list);
+    }
+
+    // ==================== String Escape Methods ====================
+
     private String escapeString(String str) {
+        if (str == null) return "";
         return str.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
+                .replace("\r", "\\r")
                 .replace("\t", "\\t");
     }
+
+    private String escapeChar(String str) {
+        if (str == null || str.isEmpty()) return "";
+        char c = str.charAt(0);
+        switch (c) {
+            case '\\': return "\\\\";
+            case '\'': return "\\'";
+            case '\n': return "\\n";
+            case '\r': return "\\r";
+            case '\t': return "\\t";
+            default: return String.valueOf(c);
+        }
+    }
+
+    // ==================== Inner Classes ====================
 
     public static class MethodSignature {
         private final String returnType;

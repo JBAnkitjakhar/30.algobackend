@@ -39,7 +39,8 @@ public class QuestionDTO {
     private Map<String, String> generalTemplate;
     private Map<String, String> correctSolution;
 
-    // ✅ NEW: Method name for execution
+    // Method name for code execution (e.g., "twoSum", "maxDistance")
+    @NotBlank(message = "Method name is required")
     private String methodName;
 
     // Testcases
