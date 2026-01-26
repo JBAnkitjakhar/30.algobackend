@@ -14,9 +14,6 @@ public class PythonTemplateGenerator {
 
     private static final Logger logger = LoggerFactory.getLogger(PythonTemplateGenerator.class);
 
-    /**
-     * Generate executable Python code from admin's template
-     */
     public String generateFromTemplate(
             String adminTemplate,
             String userCode,
@@ -25,24 +22,20 @@ public class PythonTemplateGenerator {
         logger.info("Generating Python code from template...");
         logger.info("Number of test cases: {}", testCases.size());
 
-        // 1. Extract test case template block
         String testCaseTemplate = extractBetween(
                 adminTemplate,
-                "# {{TEST_CASE_TEMPLATE_START}}",
-                "# {{TEST_CASE_TEMPLATE_END}}"
+                "#TEST_CASE_TEMPLATE_START",
+                "#TEST_CASE_TEMPLATE_END"
         );
 
         logger.info("Extracted test case template (length: {} chars)", testCaseTemplate.length());
 
-        // 2. Fill test cases
         StringBuilder allTestCases = new StringBuilder();
 
         for (int i = 0; i < testCases.size(); i++) {
             logger.info("Processing test case {}: input = {}", i + 1, testCases.get(i).getInput());
 
             String filledBlock = testCaseTemplate;
-
-            // Replace {{INPUT_X}} placeholders
             List<Object> inputs = testCases.get(i).getInput();
 
             for (int j = 0; j < inputs.size(); j++) {
@@ -57,43 +50,36 @@ public class PythonTemplateGenerator {
             allTestCases.append(filledBlock).append("\n");
         }
 
-        // 3. Build final code
         String finalCode = adminTemplate
                 .replace(
-                        "# {{TEST_CASE_TEMPLATE_START}}" + testCaseTemplate + "# {{TEST_CASE_TEMPLATE_END}}",
+                        "#TEST_CASE_TEMPLATE_START" + testCaseTemplate + "#TEST_CASE_TEMPLATE_END",
                         allTestCases.toString()
                 )
-                .replace("# {{USER_CODE_PLACEHOLDER}}", userCode);
+                .replace("#USER_CODE_PLACEHOLDER", userCode);
 
         logger.info("Final Python code generated (length: {} chars)", finalCode.length());
 
         return finalCode;
     }
 
-    /**
-     * Convert JSON value to Python literal
-     */
     private String convertToPythonLiteral(Object value) {
         if (value == null) {
             return "None";
         }
 
-        // Boolean (Python uses True/False)
-        if (value instanceof Boolean) {
-            return ((Boolean) value) ? "True" : "False";
-        }
-
-        // Numbers
         if (value instanceof Number) {
             return String.valueOf(value);
         }
 
-        // String
-        if (value instanceof String) {
-            return "\"" + escapeString((String) value) + "\"";
+        if (value instanceof Boolean) {
+            return (Boolean) value ? "True" : "False";
         }
 
-        // List/Array
+        if (value instanceof String) {
+            String str = (String) value;
+            return "\"" + escapeString(str) + "\"";
+        }
+
         if (value instanceof List) {
             List<?> list = (List<?>) value;
 
@@ -101,14 +87,15 @@ public class PythonTemplateGenerator {
                 return "[]";
             }
 
-            // Check depth
             int depth = getListDepth(list);
 
             if (depth == 1) {
-                // 1D list: [1, 2, 3]
                 return "[" + convertListToString(list) + "]";
+            } else if (depth == 2) {
+                return "[" + list.stream()
+                        .map(inner -> "[" + convertListToString((List<?>) inner) + "]")
+                        .collect(Collectors.joining(", ")) + "]";
             } else {
-                // Nested lists: [[1,2], [3,4]]
                 return "[" + list.stream()
                         .map(this::convertToPythonLiteral)
                         .collect(Collectors.joining(", ")) + "]";
@@ -131,11 +118,9 @@ public class PythonTemplateGenerator {
         return list.stream()
                 .map(item -> {
                     if (item == null) return "None";
+                    if (item instanceof Boolean) return (Boolean) item ? "True" : "False";
                     if (item instanceof String) {
                         return "\"" + escapeString((String) item) + "\"";
-                    }
-                    if (item instanceof Boolean) {
-                        return ((Boolean) item) ? "True" : "False";
                     }
                     return String.valueOf(item);
                 })

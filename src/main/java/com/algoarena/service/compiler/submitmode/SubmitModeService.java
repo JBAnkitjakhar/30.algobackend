@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class SubmitModeService {
@@ -58,7 +59,7 @@ public class SubmitModeService {
         // logger.info("Question ID: {}", questionId);
         // logger.info("Language: {}", request.getLanguage());
         // logger.info("User: {}", user.getUsername());
-        
+
         // 1. Fetch question
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found with id: " + questionId));
@@ -76,11 +77,11 @@ public class SubmitModeService {
 
         // 2. Generate complete code
         String completeCode = generateCompleteCode(
-            request.getLanguage(),
-            request.getCode(),
-            question.getTestcases(),
-            question.getMethodName()
-        );
+                request.getLanguage(),
+                request.getCode(),
+                question.getTestcases(),
+                question.getMethodName(),
+                question);
 
         // logger.info("========== GENERATED COMPLETE CODE START ==========");
         // logger.info("\n{}", completeCode);
@@ -92,48 +93,52 @@ public class SubmitModeService {
         // logger.info("========== PISTON EXECUTION RESPONSE ==========");
         // logger.info("Language: {}", executionResponse.getLanguage());
         // logger.info("Version: {}", executionResponse.getVersion());
-        
+
         // if (executionResponse.getCompile() != null) {
-        //     logger.info("Compile stdout: {}", executionResponse.getCompile().getStdout());
-        //     logger.info("Compile stderr: {}", executionResponse.getCompile().getStderr());
-        //     logger.info("Compile code: {}", executionResponse.getCompile().getCode());
+        // logger.info("Compile stdout: {}",
+        // executionResponse.getCompile().getStdout());
+        // logger.info("Compile stderr: {}",
+        // executionResponse.getCompile().getStderr());
+        // logger.info("Compile code: {}", executionResponse.getCompile().getCode());
         // }
-        
+
         // if (executionResponse.getRun() != null) {
-        //     logger.info("Run stdout length: {}", 
-        //         executionResponse.getRun().getStdout() != null ? executionResponse.getRun().getStdout().length() : 0);
-        //     logger.info("Run stdout: \n{}", executionResponse.getRun().getStdout());
-        //     logger.info("Run stderr: {}", executionResponse.getRun().getStderr());
-        //     logger.info("Run code: {}", executionResponse.getRun().getCode());
-        //     logger.info("Run wall_time: {}", executionResponse.getRun().getWallTime());
-        //     logger.info("Run memory: {}", executionResponse.getRun().getMemory());
+        // logger.info("Run stdout length: {}",
+        // executionResponse.getRun().getStdout() != null ?
+        // executionResponse.getRun().getStdout().length() : 0);
+        // logger.info("Run stdout: \n{}", executionResponse.getRun().getStdout());
+        // logger.info("Run stderr: {}", executionResponse.getRun().getStderr());
+        // logger.info("Run code: {}", executionResponse.getRun().getCode());
+        // logger.info("Run wall_time: {}", executionResponse.getRun().getWallTime());
+        // logger.info("Run memory: {}", executionResponse.getRun().getMemory());
         // }
         // logger.info("========== PISTON EXECUTION RESPONSE END ==========");
 
         // 4. Parse results
         SubmitCodeResponse response = buildSubmitCodeResponse(
-            executionResponse, 
-            question.getTestcases().size(),
-            question.getTestcases()
-        );
+                executionResponse,
+                question.getTestcases().size(),
+                question.getTestcases());
 
         // logger.info("========== SUBMIT MODE RESULT ==========");
         // logger.info("Success: {}", response.isSuccess());
         // logger.info("Verdict: {}", response.getVerdict());
-        // logger.info("Passed: {}/{}", response.getPassedTestCases(), response.getTotalTestCases());
-        // logger.info("Runtime: {} ms", response.getMetrics() != null ? response.getMetrics().getRuntime() : 0);
-        // logger.info("Memory: {} MB", response.getMetrics() != null ? response.getMetrics().getMemory() : 0);
+        // logger.info("Passed: {}/{}", response.getPassedTestCases(),
+        // response.getTotalTestCases());
+        // logger.info("Runtime: {} ms", response.getMetrics() != null ?
+        // response.getMetrics().getRuntime() : 0);
+        // logger.info("Memory: {} MB", response.getMetrics() != null ?
+        // response.getMetrics().getMemory() : 0);
 
         // 5. Create approach
         try {
             String approachId = createApproach(
-                user,
-                questionId,
-                request.getCode(),
-                request.getLanguage(),
-                response,
-                executionResponse
-            );
+                    user,
+                    questionId,
+                    request.getCode(),
+                    request.getLanguage(),
+                    response,
+                    executionResponse);
             response.setApproachId(approachId);
             // logger.info("Approach created: {}", approachId);
         } catch (Exception e) {
@@ -144,30 +149,34 @@ public class SubmitModeService {
         return response;
     }
 
-    // ✅ UPDATED: Now supports all 4 languages
     private String generateCompleteCode(
             String language,
             String userCode,
             List<Question.Testcase> testcases,
-            String methodName) {
+            String methodName,
+            Question question) {
+
+        // Get submit template from question
+        Map<String, String> submitTemplates = question.getSubmitTemplate();
+        if (submitTemplates == null || !submitTemplates.containsKey(language)) {
+            throw new RuntimeException("Submit template not available for language: " + language);
+        }
+
+        String adminTemplate = submitTemplates.get(language);
 
         switch (language.toLowerCase()) {
             case "java":
-                return javaSubmitTemplateGenerator.generateSubmitTemplate(
-                    userCode, testcases, methodName);
-            
+                return javaSubmitTemplateGenerator.generateFromTemplate(adminTemplate, userCode);
+
             case "cpp":
-                return cppSubmitTemplateGenerator.generateSubmitTemplate(
-                    userCode, testcases, methodName);
-            
+                return cppSubmitTemplateGenerator.generateFromTemplate(adminTemplate, userCode);
+
             case "python":
-                return pythonSubmitTemplateGenerator.generateSubmitTemplate(
-                    userCode, testcases, methodName);
-            
+                return pythonSubmitTemplateGenerator.generateFromTemplate(adminTemplate, userCode);
+
             case "javascript":
-                return javaScriptSubmitTemplateGenerator.generateSubmitTemplate(
-                    userCode, testcases, methodName);
-            
+                return javaScriptSubmitTemplateGenerator.generateFromTemplate(adminTemplate, userCode);
+
             default:
                 throw new IllegalArgumentException("Unsupported language: " + language);
         }
@@ -184,56 +193,61 @@ public class SubmitModeService {
 
     private String mapLanguageToPiston(String language) {
         switch (language.toLowerCase()) {
-            case "java": return "java";
-            case "cpp": return "cpp";
-            case "python": return "python";
-            case "javascript": return "javascript";
-            default: return language;
+            case "java":
+                return "java";
+            case "cpp":
+                return "cpp";
+            case "python":
+                return "python";
+            case "javascript":
+                return "javascript";
+            default:
+                return language;
         }
     }
 
     private SubmitCodeResponse buildSubmitCodeResponse(
-            ExecutionResponse executionResponse, 
+            ExecutionResponse executionResponse,
             int totalTestCases,
             List<Question.Testcase> testcases) {
 
         SubmitCodeResponse response = new SubmitCodeResponse();
 
         // Check compilation errors
-        if (executionResponse.getCompile() != null && 
-            executionResponse.getCompile().getCode() != 0) {
-            
-            String compileError = executionResponse.getCompile().getStderr() != null 
-                ? executionResponse.getCompile().getStderr() 
-                : executionResponse.getCompile().getOutput();
-            
+        if (executionResponse.getCompile() != null &&
+                executionResponse.getCompile().getCode() != 0) {
+
+            String compileError = executionResponse.getCompile().getStderr() != null
+                    ? executionResponse.getCompile().getStderr()
+                    : executionResponse.getCompile().getOutput();
+
             return handleCompileError(compileError, totalTestCases, testcases);
         }
 
         ExecutionResponse.RunResult runResult = executionResponse.getRun();
-        
+
         // Check stderr for compilation errors
-        if (runResult != null && runResult.getStderr() != null && 
-            !runResult.getStderr().isEmpty() &&
-            submitOutputParser.isCompileError(runResult.getStderr())) {
-            
+        if (runResult != null && runResult.getStderr() != null &&
+                !runResult.getStderr().isEmpty() &&
+                submitOutputParser.isCompileError(runResult.getStderr())) {
+
             return handleCompileError(runResult.getStderr(), totalTestCases, testcases);
         }
-        
+
         String stdout = runResult != null ? runResult.getStdout() : "";
-        
+
         // Parse test results
         List<SubmitTestCaseResult> testResults = submitOutputParser.parseOutput(stdout, totalTestCases);
 
         // logger.info("========== PARSED TEST RESULTS ==========");
         // for (SubmitTestCaseResult result : testResults) {
-        //     logger.info("TC {}: Status={}, Expected={}, User={}, Time={} ms, Error={}", 
-        //         result.getId(), 
-        //         result.getStatus(), 
-        //         result.getExpectedOutput(), 
-        //         result.getUserOutput(),
-        //         result.getExecutionTime(),
-        //         result.getError());
+        // logger.info("TC {}: Status={}, Expected={}, User={}, Time={} ms, Error={}",
+        // result.getId(),
+        // result.getStatus(),
+        // result.getExpectedOutput(),
+        // result.getUserOutput(),
+        // result.getExecutionTime(),
+        // result.getError());
         // }
         // logger.info("========== PARSED TEST RESULTS END ==========");
 
@@ -260,36 +274,36 @@ public class SubmitModeService {
 
         // Set metrics with MAX execution time
         SubmitCodeResponse.ExecutionMetrics metrics = new SubmitCodeResponse.ExecutionMetrics();
-        
+
         Long maxRuntime = testResults.stream()
-            .map(SubmitTestCaseResult::getExecutionTime)
-            .filter(time -> time != null && time > 0)
-            .max(Long::compareTo)
-            .orElse(0L);
-        
+                .map(SubmitTestCaseResult::getExecutionTime)
+                .filter(time -> time != null && time > 0)
+                .max(Long::compareTo)
+                .orElse(0L);
+
         // logger.info("Max runtime calculated: {} ms", maxRuntime);
-        
+
         metrics.setRuntime(maxRuntime);
-        
+
         if (runResult != null && runResult.getMemory() != null) {
             metrics.setMemory(runResult.getMemory() / (1024.0 * 1024.0));
         }
-        
+
         response.setMetrics(metrics);
 
         // Set first failure
         if (!verdict.equals("ACCEPTED")) {
             SubmitTestCaseResult firstFail = testResults.stream()
-                .filter(r -> !"PASS".equals(r.getStatus()))
-                .findFirst()
-                .orElse(null);
-            
-            if (firstFail != null) {
-                Question.Testcase originalTestcase = testcases.stream()
-                    .filter(tc -> tc.getId() == firstFail.getId())
+                    .filter(r -> !"PASS".equals(r.getStatus()))
                     .findFirst()
                     .orElse(null);
-                
+
+            if (firstFail != null) {
+                Question.Testcase originalTestcase = testcases.stream()
+                        .filter(tc -> tc.getId() == firstFail.getId())
+                        .findFirst()
+                        .orElse(null);
+
                 response.setFirstFailure(buildFirstFailureDetail(firstFail, originalTestcase));
             }
         }
@@ -299,18 +313,18 @@ public class SubmitModeService {
         return response;
     }
 
-    private SubmitCodeResponse handleCompileError(String errorMessage, int totalTestCases, 
-                                                    List<Question.Testcase> testcases) {
+    private SubmitCodeResponse handleCompileError(String errorMessage, int totalTestCases,
+            List<Question.Testcase> testcases) {
         SubmitCodeResponse response = new SubmitCodeResponse();
         response.setSuccess(false);
         response.setVerdict("WRONG_ANSWER");
         response.setMessage("Compilation failed");
         response.setPassedTestCases(0);
         response.setTotalTestCases(totalTestCases);
-        
+
         SubmitCodeResponse.FirstFailureDetail failure = new SubmitCodeResponse.FirstFailureDetail();
         failure.setTestCaseId(1);
-        
+
         if (!testcases.isEmpty()) {
             Question.Testcase firstTestcase = testcases.get(0);
             try {
@@ -320,26 +334,26 @@ public class SubmitModeService {
                 failure.setInput("{}");
             }
         }
-        
+
         failure.setUserOutput(null);
         failure.setError(submitOutputParser.extractCompileError(errorMessage));
-        
+
         response.setFirstFailure(failure);
         response.setMetrics(new SubmitCodeResponse.ExecutionMetrics(0L, 0.0));
-        
+
         return response;
     }
 
     private SubmitCodeResponse.FirstFailureDetail buildFirstFailureDetail(
-            SubmitTestCaseResult failResult, 
+            SubmitTestCaseResult failResult,
             Question.Testcase originalTestcase) {
-        
+
         SubmitCodeResponse.FirstFailureDetail detail = new SubmitCodeResponse.FirstFailureDetail();
         detail.setTestCaseId(failResult.getId());
         detail.setExpectedOutput(failResult.getExpectedOutput());
         detail.setUserOutput(failResult.getUserOutput());
         detail.setError(failResult.getError());
-        
+
         if (originalTestcase != null) {
             try {
                 detail.setInput(objectMapper.writeValueAsString(originalTestcase.getInput()));
@@ -347,27 +361,27 @@ public class SubmitModeService {
                 detail.setInput("{}");
             }
         }
-        
+
         return detail;
     }
 
-    private String generateMessage(String verdict, int passed, int total, 
-                                     SubmitCodeResponse.FirstFailureDetail firstFailure) {
+    private String generateMessage(String verdict, int passed, int total,
+            SubmitCodeResponse.FirstFailureDetail firstFailure) {
         switch (verdict) {
             case "ACCEPTED":
                 return String.format("Accepted! All %d/%d test cases passed. Great job!", passed, total);
-            
+
             case "WRONG_ANSWER":
                 if (firstFailure != null && firstFailure.getError() != null) {
                     return "Compilation failed";
                 }
-                return String.format("Wrong answer on test case %d", 
-                    firstFailure != null ? firstFailure.getTestCaseId() : 1);
-            
+                return String.format("Wrong answer on test case %d",
+                        firstFailure != null ? firstFailure.getTestCaseId() : 1);
+
             case "TLE":
-                return String.format("Time limit exceeded on test case %d", 
-                    firstFailure != null ? firstFailure.getTestCaseId() : 1);
-            
+                return String.format("Time limit exceeded on test case %d",
+                        firstFailure != null ? firstFailure.getTestCaseId() : 1);
+
             default:
                 return "Execution completed";
         }
@@ -392,11 +406,12 @@ public class SubmitModeService {
                 approachDTO.setStatus(ApproachStatus.ACCEPTED);
                 if (response.getMetrics() != null) {
                     approachDTO.setRuntime(response.getMetrics().getRuntime());
-                    approachDTO.setMemory(response.getMetrics().getMemory() != null 
-                        ? response.getMetrics().getMemory().longValue() : null);
+                    approachDTO.setMemory(response.getMetrics().getMemory() != null
+                            ? response.getMetrics().getMemory().longValue()
+                            : null);
                 }
                 break;
-            
+
             case "WRONG_ANSWER":
                 approachDTO.setStatus(ApproachStatus.WRONG_ANSWER);
                 if (response.getFirstFailure() != null) {
@@ -410,7 +425,7 @@ public class SubmitModeService {
                     approachDTO.setWrongTestcase(wrongTC);
                 }
                 break;
-            
+
             case "TLE":
                 approachDTO.setStatus(ApproachStatus.TIME_LIMIT_EXCEEDED);
                 if (response.getFirstFailure() != null) {
@@ -424,11 +439,10 @@ public class SubmitModeService {
         }
 
         ApproachDetailDTO created = approachService.createApproach(
-            user.getId(), 
-            questionId, 
-            approachDTO, 
-            user
-        );
+                user.getId(),
+                questionId,
+                approachDTO,
+                user);
 
         return created.getId();
     }

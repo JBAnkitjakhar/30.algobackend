@@ -14,9 +14,6 @@ public class CppTemplateGenerator {
 
     private static final Logger logger = LoggerFactory.getLogger(CppTemplateGenerator.class);
 
-    /**
-     * Generate executable C++ code from admin's template
-     */
     public String generateFromTemplate(
             String adminTemplate,
             String userCode,
@@ -25,24 +22,20 @@ public class CppTemplateGenerator {
         logger.info("Generating C++ code from template...");
         logger.info("Number of test cases: {}", testCases.size());
 
-        // 1. Extract test case template block
         String testCaseTemplate = extractBetween(
                 adminTemplate,
-                "// {{TEST_CASE_TEMPLATE_START}}",
-                "// {{TEST_CASE_TEMPLATE_END}}"
+                "/*TEST_CASE_TEMPLATE_START*/",
+                "/*TEST_CASE_TEMPLATE_END*/"
         );
 
         logger.info("Extracted test case template (length: {} chars)", testCaseTemplate.length());
 
-        // 2. Fill test cases
         StringBuilder allTestCases = new StringBuilder();
 
         for (int i = 0; i < testCases.size(); i++) {
             logger.info("Processing test case {}: input = {}", i + 1, testCases.get(i).getInput());
 
             String filledBlock = testCaseTemplate;
-
-            // Replace {{INPUT_X}} placeholders
             List<Object> inputs = testCases.get(i).getInput();
 
             for (int j = 0; j < inputs.size(); j++) {
@@ -57,43 +50,47 @@ public class CppTemplateGenerator {
             allTestCases.append(filledBlock).append("\n");
         }
 
-        // 3. Build final code
         String finalCode = adminTemplate
                 .replace(
-                        "// {{TEST_CASE_TEMPLATE_START}}" + testCaseTemplate + "// {{TEST_CASE_TEMPLATE_END}}",
+                        "/*TEST_CASE_TEMPLATE_START*/" + testCaseTemplate + "/*TEST_CASE_TEMPLATE_END*/",
                         allTestCases.toString()
                 )
-                .replace("// {{USER_CODE_PLACEHOLDER}}", userCode);
+                .replace("/*USER_CODE_PLACEHOLDER*/", userCode);
 
         logger.info("Final C++ code generated (length: {} chars)", finalCode.length());
 
         return finalCode;
     }
 
-    /**
-     * Convert JSON value to C++ literal
-     */
     private String convertToCppLiteral(Object value) {
         if (value == null) {
             return "nullptr";
         }
 
-        // Boolean (C++ uses true/false)
-        if (value instanceof Boolean) {
-            return String.valueOf(value).toLowerCase();
+        if (value instanceof Long) {
+            return value + "L";
         }
 
-        // Numbers
+        if (value instanceof Float) {
+            return value + "f";
+        }
+
         if (value instanceof Number) {
             return String.valueOf(value);
         }
 
-        // String
-        if (value instanceof String) {
-            return "\"" + escapeString((String) value) + "\"";
+        if (value instanceof Boolean) {
+            return String.valueOf(value);
         }
 
-        // List/Array
+        if (value instanceof String) {
+            String str = (String) value;
+            if (str.length() == 1) {
+                return "'" + escapeChar(str.charAt(0)) + "'";
+            }
+            return "\"" + escapeString(str) + "\"";
+        }
+
         if (value instanceof List) {
             List<?> list = (List<?>) value;
 
@@ -101,14 +98,15 @@ public class CppTemplateGenerator {
                 return "{}";
             }
 
-            // Check depth
             int depth = getListDepth(list);
 
             if (depth == 1) {
-                // 1D vector: {1, 2, 3}
                 return "{" + convertListToString(list) + "}";
+            } else if (depth == 2) {
+                return "{" + list.stream()
+                        .map(inner -> "{" + convertListToString((List<?>) inner) + "}")
+                        .collect(Collectors.joining(", ")) + "}";
             } else {
-                // Nested vectors: {{1,2}, {3,4}}
                 return "{" + list.stream()
                         .map(this::convertToCppLiteral)
                         .collect(Collectors.joining(", ")) + "}";
@@ -132,11 +130,14 @@ public class CppTemplateGenerator {
                 .map(item -> {
                     if (item == null) return "nullptr";
                     if (item instanceof String) {
-                        return "\"" + escapeString((String) item) + "\"";
+                        String str = (String) item;
+                        if (str.length() == 1) {
+                            return "'" + escapeChar(str.charAt(0)) + "'";
+                        }
+                        return "\"" + escapeString(str) + "\"";
                     }
-                    if (item instanceof Boolean) {
-                        return String.valueOf(item).toLowerCase();
-                    }
+                    if (item instanceof Long) return item + "L";
+                    if (item instanceof Float) return item + "f";
                     return String.valueOf(item);
                 })
                 .collect(Collectors.joining(", "));
@@ -149,6 +150,17 @@ public class CppTemplateGenerator {
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
+    }
+
+    private String escapeChar(char c) {
+        switch (c) {
+            case '\\': return "\\\\";
+            case '\'': return "\\'";
+            case '\n': return "\\n";
+            case '\r': return "\\r";
+            case '\t': return "\\t";
+            default: return String.valueOf(c);
+        }
     }
 
     private String extractBetween(String text, String start, String end) {
