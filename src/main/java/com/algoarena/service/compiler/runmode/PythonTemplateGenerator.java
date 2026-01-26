@@ -2,281 +2,163 @@
 package com.algoarena.service.compiler.runmode;
 
 import com.algoarena.dto.compiler.runmode.RunTestCaseInput;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class PythonTemplateGenerator {
 
-    public String generateRunTemplate(
-            String correctSolution,
+    private static final Logger logger = LoggerFactory.getLogger(PythonTemplateGenerator.class);
+
+    /**
+     * Generate executable Python code from admin's template
+     */
+    public String generateFromTemplate(
+            String adminTemplate,
             String userCode,
-            List<RunTestCaseInput> testCases,
-            String methodName) {
-        
-        MethodSignature signature = extractMethodSignature(correctSolution, methodName);
-        
-        StringBuilder template = new StringBuilder();
-        
-        // Imports
-        template.append("from typing import List, Optional\n");
-        template.append("import sys\n");
-        template.append("import copy\n\n");
-        
-        // Correct solution
-        template.append("# ===== CORRECT SOLUTION =====\n");
-        template.append(correctSolution.replace("class Solution:", "class CorrectSolution:"));
-        template.append("\n\n");
-        
-        // User solution
-        template.append("# ===== USER SOLUTION =====\n");
-        template.append(userCode);
-        template.append("\n\n");
-        
-        // Main execution
-        template.append(generateMainExecution(signature, testCases));
-        
-        return template.toString();
-    }
+            List<RunTestCaseInput> testCases) {
 
-    private MethodSignature extractMethodSignature(String correctSolution, String methodName) {
-        String patternString = "def\\s+" + 
-                               Pattern.quote(methodName) + 
-                               "\\s*\\(self(?:,\\s*([^)]*))?\\)(?:\\s*->\\s*(\\w+(?:\\[.*?\\])?))?\\s*:";
-        
-        Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(correctSolution);
-        
-        if (!matcher.find()) {
-            throw new IllegalArgumentException(
-                "Could not find method '" + methodName + "' in correct solution");
-        }
-        
-        String paramsString = matcher.group(1);
-        String returnType = matcher.group(2) != null ? matcher.group(2) : "None";
-        
-        List<Parameter> parameters = new ArrayList<>();
-        
-        if (paramsString != null && !paramsString.trim().isEmpty()) {
-            String[] paramPairs = paramsString.split(",");
-            for (String pair : paramPairs) {
-                String[] parts = pair.trim().split(":");
-                if (parts.length >= 1) {
-                    String name = parts[0].trim();
-                    String type = parts.length > 1 ? parts[1].trim() : "Any";
-                    parameters.add(new Parameter(type, name));
-                }
-            }
-        }
-        
-        return new MethodSignature(returnType, methodName, parameters);
-    }
+        logger.info("Generating Python code from template...");
+        logger.info("Number of test cases: {}", testCases.size());
 
-    // ✅ UPDATED: Each test case creates fresh instances
-    private String generateMainExecution(MethodSignature signature, List<RunTestCaseInput> testCases) {
-        StringBuilder main = new StringBuilder();
-        
-        main.append("if __name__ == \"__main__\":\n");
-        
-        // Generate each test case
+        // 1. Extract test case template block
+        String testCaseTemplate = extractBetween(
+                adminTemplate,
+                "# {{TEST_CASE_TEMPLATE_START}}",
+                "# {{TEST_CASE_TEMPLATE_END}}"
+        );
+
+        logger.info("Extracted test case template (length: {} chars)", testCaseTemplate.length());
+
+        // 2. Fill test cases
+        StringBuilder allTestCases = new StringBuilder();
+
         for (int i = 0; i < testCases.size(); i++) {
-            main.append(generateTestCase(testCases.get(i), i + 1, signature));
+            logger.info("Processing test case {}: input = {}", i + 1, testCases.get(i).getInput());
+
+            String filledBlock = testCaseTemplate;
+
+            // Replace {{INPUT_X}} placeholders
+            List<Object> inputs = testCases.get(i).getInput();
+
+            for (int j = 0; j < inputs.size(); j++) {
+                String placeholder = "{{INPUT_" + j + "}}";
+                String pythonLiteral = convertToPythonLiteral(inputs.get(j));
+
+                logger.info("Replacing {} with: {}", placeholder, pythonLiteral);
+
+                filledBlock = filledBlock.replace(placeholder, pythonLiteral);
+            }
+
+            allTestCases.append(filledBlock).append("\n");
         }
-        
-        return main.toString();
+
+        // 3. Build final code
+        String finalCode = adminTemplate
+                .replace(
+                        "# {{TEST_CASE_TEMPLATE_START}}" + testCaseTemplate + "# {{TEST_CASE_TEMPLATE_END}}",
+                        allTestCases.toString()
+                )
+                .replace("# {{USER_CODE_PLACEHOLDER}}", userCode);
+
+        logger.info("Final Python code generated (length: {} chars)", finalCode.length());
+
+        return finalCode;
     }
 
-    // ✅ UPDATED: Fresh instances + deep copy per test case
-    private String generateTestCase(RunTestCaseInput testCase, int testNumber, MethodSignature signature) {
-        StringBuilder code = new StringBuilder();
-        
-        code.append("    # ===== TEST CASE ").append(testNumber).append(" =====\n");
-        
-        Map<String, Object> inputs = testCase.getInput();
-        
-        // Generate base variables
-        for (Parameter param : signature.getParameters()) {
-            Object value = inputs.get(param.getName());
-            String pythonCode = convertToPythonCode(value);
-            code.append("    ").append(param.getName()).append(testNumber)
-                .append(" = ").append(pythonCode).append("\n");
+    /**
+     * Convert JSON value to Python literal
+     */
+    private String convertToPythonLiteral(Object value) {
+        if (value == null) {
+            return "None";
         }
-        
-        code.append("\n");
-        code.append("    try:\n");
-        
-        // ✅ CREATE FRESH INSTANCES
-        code.append("        correct_solution").append(testNumber).append(" = CorrectSolution()\n");
-        code.append("        user_solution").append(testNumber).append(" = Solution()\n\n");
-        
-        // Deep copies for correct solution
-        code.append("        # Deep copy for correct solution\n");
-        for (Parameter param : signature.getParameters()) {
-            if (param.getType().contains("List")) {
-                code.append("        ").append(param.getName()).append(testNumber)
-                    .append("_correct = copy.deepcopy(")
-                    .append(param.getName()).append(testNumber).append(")\n");
-            }
-        }
-        
-        code.append("\n");
-        
-        // Call CORRECT solution
-        code.append("        expected = correct_solution").append(testNumber)
-            .append(".").append(signature.getMethodName()).append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            String paramName = signature.getParameters().get(i).getName() + testNumber;
-            String paramType = signature.getParameters().get(i).getType();
-            
-            if (paramType.contains("List")) {
-                code.append(paramName).append("_correct");
-            } else {
-                code.append(paramName);
-            }
-            
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(")\n");
-        
-        // Deep copies for user solution
-        code.append("\n        # Deep copy for user solution\n");
-        for (Parameter param : signature.getParameters()) {
-            if (param.getType().contains("List")) {
-                code.append("        ").append(param.getName()).append(testNumber)
-                    .append("_user = copy.deepcopy(")
-                    .append(param.getName()).append(testNumber).append(")\n");
-            }
-        }
-        
-        code.append("\n");
-        
-        // Call USER solution
-        code.append("        actual = user_solution").append(testNumber)
-            .append(".").append(signature.getMethodName()).append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            String paramName = signature.getParameters().get(i).getName() + testNumber;
-            String paramType = signature.getParameters().get(i).getType();
-            
-            if (paramType.contains("List")) {
-                code.append(paramName).append("_user");
-            } else {
-                code.append(paramName);
-            }
-            
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(")\n\n");
-        
-        // Print results
-        code.append("        print(\"TEST_CASE_START\")\n");
-        code.append("        print(f\"EXPECTED_OUTPUT : {expected if expected is not None else 'None'}\")\n");
-        code.append("        print(f\"USER_OUTPUT : {actual if actual is not None else 'None'}\")\n");
-        code.append("        print(\"TEST_CASE_END\")\n");
-        
-        code.append("    except Exception as e:\n");
-        code.append("        print(\"TEST_CASE_START\")\n");
-        code.append("        print(f\"ERROR : {str(e)}\")\n");
-        code.append("        print(\"TEST_CASE_END\")\n\n");
-        
-        return code.toString();
-    }
 
-    private String convertToPythonCode(Object value) {
-        if (value == null) return "None";
-        
-        if (value instanceof List) {
-            List<?> list = (List<?>) value;
-            if (list.isEmpty()) return "[]";
-            
-            if (list.get(0) instanceof List) {
-                return convert2DList(list);
-            } else {
-                return convert1DList(list);
-            }
-        }
-        
-        if (value instanceof String) {
-            return "\"" + escapeString((String) value) + "\"";
-        }
-        
+        // Boolean (Python uses True/False)
         if (value instanceof Boolean) {
             return ((Boolean) value) ? "True" : "False";
         }
-        
+
+        // Numbers
+        if (value instanceof Number) {
+            return String.valueOf(value);
+        }
+
+        // String
+        if (value instanceof String) {
+            return "\"" + escapeString((String) value) + "\"";
+        }
+
+        // List/Array
+        if (value instanceof List) {
+            List<?> list = (List<?>) value;
+
+            if (list.isEmpty()) {
+                return "[]";
+            }
+
+            // Check depth
+            int depth = getListDepth(list);
+
+            if (depth == 1) {
+                // 1D list: [1, 2, 3]
+                return "[" + convertListToString(list) + "]";
+            } else {
+                // Nested lists: [[1,2], [3,4]]
+                return "[" + list.stream()
+                        .map(this::convertToPythonLiteral)
+                        .collect(Collectors.joining(", ")) + "]";
+            }
+        }
+
         return String.valueOf(value);
     }
 
-    private String convert2DList(List<?> array) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < array.size(); i++) {
-            List<?> row = (List<?>) array.get(i);
-            sb.append("[");
-            for (int j = 0; j < row.size(); j++) {
-                sb.append(row.get(j));
-                if (j < row.size() - 1) sb.append(",");
-            }
-            sb.append("]");
-            if (i < array.size() - 1) sb.append(",");
+    private int getListDepth(List<?> list) {
+        if (list.isEmpty()) return 1;
+        Object first = list.get(0);
+        if (first instanceof List) {
+            return 1 + getListDepth((List<?>) first);
         }
-        sb.append("]");
-        return sb.toString();
+        return 1;
     }
 
-    private String convert1DList(List<?> array) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < array.size(); i++) {
-            Object item = array.get(i);
-            if (item instanceof String) {
-                sb.append("\"").append(escapeString((String) item)).append("\"");
-            } else {
-                sb.append(item);
-            }
-            if (i < array.size() - 1) sb.append(",");
-        }
-        sb.append("]");
-        return sb.toString();
+    private String convertListToString(List<?> list) {
+        return list.stream()
+                .map(item -> {
+                    if (item == null) return "None";
+                    if (item instanceof String) {
+                        return "\"" + escapeString((String) item) + "\"";
+                    }
+                    if (item instanceof Boolean) {
+                        return ((Boolean) item) ? "True" : "False";
+                    }
+                    return String.valueOf(item);
+                })
+                .collect(Collectors.joining(", "));
     }
 
     private String escapeString(String str) {
+        if (str == null) return "";
         return str.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
+                .replace("\r", "\\r")
                 .replace("\t", "\\t");
     }
 
-    public static class MethodSignature {
-        private final String returnType;
-        private final String methodName;
-        private final List<Parameter> parameters;
+    private String extractBetween(String text, String start, String end) {
+        int startIdx = text.indexOf(start);
+        int endIdx = text.indexOf(end);
 
-        public MethodSignature(String returnType, String methodName, List<Parameter> parameters) {
-            this.returnType = returnType;
-            this.methodName = methodName;
-            this.parameters = parameters;
+        if (startIdx == -1 || endIdx == -1) {
+            throw new RuntimeException("Invalid template: missing markers " + start + " or " + end);
         }
 
-        public String getReturnType() { return returnType; }
-        public String getMethodName() { return methodName; }
-        public List<Parameter> getParameters() { return parameters; }
-    }
-
-    public static class Parameter {
-        private final String type;
-        private final String name;
-
-        public Parameter(String type, String name) {
-            this.type = type;
-            this.name = name;
-        }
-
-        public String getType() { return type; }
-        public String getName() { return name; }
+        return text.substring(startIdx + start.length(), endIdx);
     }
 }

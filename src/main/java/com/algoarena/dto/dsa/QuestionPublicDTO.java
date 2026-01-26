@@ -1,9 +1,11 @@
-// File: src/main/java/com/algoarena/dto/dsa/QuestionPublicDTO.java
+// src/main/java/com/algoarena/dto/dsa/QuestionPublicDTO.java
 package com.algoarena.dto.dsa;
 
 import com.algoarena.model.QuestionLevel;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class QuestionPublicDTO {
 
@@ -16,16 +18,13 @@ public class QuestionPublicDTO {
     
     // Code templates
     private Map<String, String> userStarterCode;
-    private Map<String, String> generalTemplate;
-    private Map<String, String> correctSolution;
-    
-    // Testcases
+    // Testcases (limited to first 3)
     private List<TestcaseDTO> testcases;
 
     // Inner DTO for Testcase
     public static class TestcaseDTO {
         private Integer id;
-        private Map<String, Object> input;
+        private LinkedHashMap<String, Object> input;
         private Object expectedOutput;
 
         public TestcaseDTO() {}
@@ -40,8 +39,8 @@ public class QuestionPublicDTO {
         public Integer getId() { return id; }
         public void setId(Integer id) { this.id = id; }
 
-        public Map<String, Object> getInput() { return input; }
-        public void setInput(Map<String, Object> input) { this.input = input; }
+        public LinkedHashMap<String, Object> getInput() { return input; }
+        public void setInput(LinkedHashMap<String, Object> input) { this.input = input; }
 
         public Object getExpectedOutput() { return expectedOutput; }
         public void setExpectedOutput(Object expectedOutput) { this.expectedOutput = expectedOutput; }
@@ -57,14 +56,15 @@ public class QuestionPublicDTO {
         dto.imageUrls = full.getImageUrls();
         dto.categoryId = full.getCategoryId();
         dto.level = full.getLevel();
-        dto.userStarterCode = full.getUserStarterCode();
-        dto.generalTemplate = full.getGeneralTemplate();
-        dto.correctSolution = full.getCorrectSolution();
         
+        dto.userStarterCode = full.getUserStarterCode();
+        
+        // ✅ Only first 3 testcases
         if (full.getTestcases() != null) {
             dto.testcases = full.getTestcases().stream()
+                    .limit(3)  // ✅ Limit to first 3 testcases
                     .map(TestcaseDTO::new)
-                    .toList();
+                    .collect(Collectors.toList());
         }
         
         return dto;
@@ -91,12 +91,6 @@ public class QuestionPublicDTO {
 
     public Map<String, String> getUserStarterCode() { return userStarterCode; }
     public void setUserStarterCode(Map<String, String> userStarterCode) { this.userStarterCode = userStarterCode; }
-
-    public Map<String, String> getGeneralTemplate() { return generalTemplate; }
-    public void setGeneralTemplate(Map<String, String> generalTemplate) { this.generalTemplate = generalTemplate; }
-
-    public Map<String, String> getCorrectSolution() { return correctSolution; }
-    public void setCorrectSolution(Map<String, String> correctSolution) { this.correctSolution = correctSolution; }
 
     public List<TestcaseDTO> getTestcases() { return testcases; }
     public void setTestcases(List<TestcaseDTO> testcases) { this.testcases = testcases; }

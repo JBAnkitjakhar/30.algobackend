@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.Indexed;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,10 +33,9 @@ public class Question {
 
     // Code templates (multi-language)
     private Map<String, String> userStarterCode;
-    private Map<String, String> generalTemplate;
-    private Map<String, String> correctSolution;
+    private Map<String, String> submitTemplate;   
+    private Map<String, String> runTemplate;          
 
-    // ✅ NEW: Method name to call for execution (e.g., "numDistinctIslands", "twoSum")
     private String methodName;
 
     // Testcases
@@ -52,13 +52,13 @@ public class Question {
     // Inner class for Testcase
     public static class Testcase {
         private Integer id;
-        private Map<String, Object> input;
+        private LinkedHashMap<String, Object> input;
         private Object expectedOutput;
 
         public Testcase() {
         }
 
-        public Testcase(Integer id, Map<String, Object> input, Object expectedOutput) {
+        public Testcase(Integer id, LinkedHashMap<String, Object> input, Object expectedOutput) {
             this.id = id;
             this.input = input;
             this.expectedOutput = expectedOutput;
@@ -72,11 +72,11 @@ public class Question {
             this.id = id;
         }
 
-        public Map<String, Object> getInput() {
+        public LinkedHashMap<String, Object> getInput() {
             return input;
         }
 
-        public void setInput(Map<String, Object> input) {
+        public void setInput(LinkedHashMap<String, Object> input) {
             this.input = input;
         }
 
@@ -148,25 +148,24 @@ public class Question {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Map<String, String> getGeneralTemplate() {
-        return generalTemplate;
+    public Map<String, String> getSubmitTemplate() {  // ✅ RENAMED
+        return submitTemplate;
     }
 
-    public void setGeneralTemplate(Map<String, String> generalTemplate) {
-        this.generalTemplate = generalTemplate;
+    public void setSubmitTemplate(Map<String, String> submitTemplate) {  // ✅ RENAMED
+        this.submitTemplate = submitTemplate;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Map<String, String> getCorrectSolution() {
-        return correctSolution;
+    public Map<String, String> getRunTemplate() {  // ✅ RENAMED
+        return runTemplate;
     }
 
-    public void setCorrectSolution(Map<String, String> correctSolution) {
-        this.correctSolution = correctSolution;
+    public void setRunTemplate(Map<String, String> runTemplate) {  // ✅ RENAMED
+        this.runTemplate = runTemplate;
         this.updatedAt = LocalDateTime.now();
     }
 
-    // ✅ NEW: Getter and Setter for methodName
     public String getMethodName() {
         return methodName;
     }

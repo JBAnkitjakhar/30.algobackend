@@ -1,340 +1,164 @@
 // src/main/java/com/algoarena/service/compiler/runmode/CppTemplateGenerator.java
-
 package com.algoarena.service.compiler.runmode;
 
 import com.algoarena.dto.compiler.runmode.RunTestCaseInput;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class CppTemplateGenerator {
 
-    public String generateRunTemplate(
-            String correctSolution,
+    private static final Logger logger = LoggerFactory.getLogger(CppTemplateGenerator.class);
+
+    /**
+     * Generate executable C++ code from admin's template
+     */
+    public String generateFromTemplate(
+            String adminTemplate,
             String userCode,
-            List<RunTestCaseInput> testCases,
-            String methodName) {
+            List<RunTestCaseInput> testCases) {
 
-        MethodSignature signature = extractMethodSignature(correctSolution, methodName);
+        logger.info("Generating C++ code from template...");
+        logger.info("Number of test cases: {}", testCases.size());
 
-        StringBuilder template = new StringBuilder();
+        // 1. Extract test case template block
+        String testCaseTemplate = extractBetween(
+                adminTemplate,
+                "// {{TEST_CASE_TEMPLATE_START}}",
+                "// {{TEST_CASE_TEMPLATE_END}}"
+        );
 
-        // Includes
-        template.append("#include <iostream>\n");
-        template.append("#include <vector>\n");
-        template.append("#include <string>\n");
-        template.append("#include <set>\n");
-        template.append("#include <map>\n");
-        template.append("#include <algorithm>\n");
-        template.append("using namespace std;\n\n");
+        logger.info("Extracted test case template (length: {} chars)", testCaseTemplate.length());
 
-        // Correct solution
-        template.append("// ===== CORRECT SOLUTION =====\n");
-        template.append(correctSolution.replace("class Solution", "class CorrectSolution"));
-        template.append("\n\n");
+        // 2. Fill test cases
+        StringBuilder allTestCases = new StringBuilder();
 
-        // User solution
-        template.append("// ===== USER SOLUTION =====\n");
-        template.append(userCode);
-        template.append("\n\n");
-
-        // Main function
-        template.append(generateMainFunction(signature, testCases));
-
-        return template.toString();
-    }
-
-    private MethodSignature extractMethodSignature(String correctSolution, String methodName) {
-        String patternString = "(\\w+(?:<[^>]+>)?(?:\\s*&)?(?:\\s*\\*)?(?:\\[\\])?(?:&)?)\\s+" + 
-                               Pattern.quote(methodName) + 
-                               "\\s*\\(([^)]*)\\)";
-        
-        Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(correctSolution);
-
-        if (!matcher.find()) {
-            throw new IllegalArgumentException(
-                "Could not find method '" + methodName + "' in correct solution");
-        }
-
-        String returnType = matcher.group(1).trim();
-        String paramsString = matcher.group(2).trim();
-
-        List<Parameter> parameters = new ArrayList<>();
-
-        if (!paramsString.isEmpty()) {
-            String[] paramPairs = paramsString.split(",");
-            for (String pair : paramPairs) {
-                pair = pair.trim();
-                int lastSpace = pair.lastIndexOf(' ');
-                if (lastSpace > 0) {
-                    String type = pair.substring(0, lastSpace).trim();
-                    String name = pair.substring(lastSpace + 1).trim();
-                    name = name.replaceAll("[&*]", "");
-                    parameters.add(new Parameter(type, name));
-                }
-            }
-        }
-
-        return new MethodSignature(returnType, methodName, parameters);
-    }
-
-    // ✅ UPDATED: Create fresh instances per test case
-    private String generateMainFunction(MethodSignature signature, List<RunTestCaseInput> testCases) {
-        StringBuilder main = new StringBuilder();
-
-        main.append("int main() {\n");
-
-        // Generate each test case with fresh instances
         for (int i = 0; i < testCases.size(); i++) {
-            main.append(generateTestCase(testCases.get(i), i + 1, signature));
+            logger.info("Processing test case {}: input = {}", i + 1, testCases.get(i).getInput());
+
+            String filledBlock = testCaseTemplate;
+
+            // Replace {{INPUT_X}} placeholders
+            List<Object> inputs = testCases.get(i).getInput();
+
+            for (int j = 0; j < inputs.size(); j++) {
+                String placeholder = "{{INPUT_" + j + "}}";
+                String cppLiteral = convertToCppLiteral(inputs.get(j));
+
+                logger.info("Replacing {} with: {}", placeholder, cppLiteral);
+
+                filledBlock = filledBlock.replace(placeholder, cppLiteral);
+            }
+
+            allTestCases.append(filledBlock).append("\n");
         }
 
-        main.append("    return 0;\n");
-        main.append("}\n");
+        // 3. Build final code
+        String finalCode = adminTemplate
+                .replace(
+                        "// {{TEST_CASE_TEMPLATE_START}}" + testCaseTemplate + "// {{TEST_CASE_TEMPLATE_END}}",
+                        allTestCases.toString()
+                )
+                .replace("// {{USER_CODE_PLACEHOLDER}}", userCode);
 
-        return main.toString();
+        logger.info("Final C++ code generated (length: {} chars)", finalCode.length());
+
+        return finalCode;
     }
 
-    // ✅ UPDATED: Fresh instances + deep copy per test case
-    private String generateTestCase(RunTestCaseInput testCase, int testNumber, MethodSignature signature) {
-        StringBuilder code = new StringBuilder();
-
-        code.append("    // ===== TEST CASE ").append(testNumber).append(" =====\n");
-        code.append("    {\n");
-
-        Map<String, Object> inputs = testCase.getInput();
-
-        // ✅ CREATE FRESH INSTANCES
-        code.append("        CorrectSolution correctSolution").append(testNumber).append(";\n");
-        code.append("        Solution userSolution").append(testNumber).append(";\n\n");
-
-        // Generate variables for CORRECT solution
-        code.append("        // Variables for correct solution\n");
-        for (Parameter param : signature.getParameters()) {
-            Object value = inputs.get(param.getName());
-            String cppCode = convertToCppCode(value, param.getType());
-            String declType = param.getType().replaceAll("&|\\*", "").trim();
-
-            code.append("        ")
-                    .append(declType)
-                    .append(" ")
-                    .append(param.getName())
-                    .append(testNumber)
-                    .append("Correct = ")
-                    .append(cppCode)
-                    .append(";\n");
+    /**
+     * Convert JSON value to C++ literal
+     */
+    private String convertToCppLiteral(Object value) {
+        if (value == null) {
+            return "nullptr";
         }
 
-        // ✅ DEEP COPY for correct solution (vectors)
-        for (Parameter param : signature.getParameters()) {
-            if (param.getType().contains("vector")) {
-                String declType = param.getType().replaceAll("&|\\*", "").trim();
-                code.append("        ")
-                        .append(declType)
-                        .append(" ")
-                        .append(param.getName())
-                        .append(testNumber)
-                        .append("CorrectCopy = ")
-                        .append(param.getName())
-                        .append(testNumber)
-                        .append("Correct;\n");
-            }
-        }
-
-        code.append("\n");
-
-        // Generate variables for USER solution
-        code.append("        // Variables for user solution\n");
-        for (Parameter param : signature.getParameters()) {
-            Object value = inputs.get(param.getName());
-            String cppCode = convertToCppCode(value, param.getType());
-            String declType = param.getType().replaceAll("&|\\*", "").trim();
-
-            code.append("        ")
-                    .append(declType)
-                    .append(" ")
-                    .append(param.getName())
-                    .append(testNumber)
-                    .append("User = ")
-                    .append(cppCode)
-                    .append(";\n");
-        }
-
-        // ✅ DEEP COPY for user solution (vectors)
-        for (Parameter param : signature.getParameters()) {
-            if (param.getType().contains("vector")) {
-                String declType = param.getType().replaceAll("&|\\*", "").trim();
-                code.append("        ")
-                        .append(declType)
-                        .append(" ")
-                        .append(param.getName())
-                        .append(testNumber)
-                        .append("UserCopy = ")
-                        .append(param.getName())
-                        .append(testNumber)
-                        .append("User;\n");
-            }
-        }
-
-        code.append("\n");
-        code.append("        try {\n");
-
-        // Call CORRECT solution
-        code.append("            ")
-                .append(signature.getReturnType())
-                .append(" expected = correctSolution").append(testNumber).append(".")
-                .append(signature.getMethodName())
-                .append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            String paramName = signature.getParameters().get(i).getName() + testNumber + "Correct";
-            if (signature.getParameters().get(i).getType().contains("vector")) {
-                paramName += "Copy";
-            }
-            code.append(paramName);
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(");\n");
-
-        // Call USER solution
-        code.append("            ")
-                .append(signature.getReturnType())
-                .append(" actual = userSolution").append(testNumber).append(".")
-                .append(signature.getMethodName())
-                .append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            String paramName = signature.getParameters().get(i).getName() + testNumber + "User";
-            if (signature.getParameters().get(i).getType().contains("vector")) {
-                paramName += "Copy";
-            }
-            code.append(paramName);
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(");\n\n");
-
-        // Print results
-        code.append("            cout << \"TEST_CASE_START\" << endl;\n");
-        code.append("            cout << \"EXPECTED_OUTPUT : \" << expected << endl;\n");
-        code.append("            cout << \"USER_OUTPUT : \" << actual << endl;\n");
-        code.append("            cout << \"TEST_CASE_END\" << endl;\n");
-
-        code.append("        } catch (const exception& e) {\n");
-        code.append("            cout << \"TEST_CASE_START\" << endl;\n");
-        code.append("            cout << \"ERROR : \" << e.what() << endl;\n");
-        code.append("            cout << \"TEST_CASE_END\" << endl;\n");
-        code.append("        }\n");
-
-        code.append("    }\n\n");
-
-        return code.toString();
-    }
-
-    private String convertToCppCode(Object value, String type) {
-        if (value == null) return "{}";
-        
-        if (type.contains("vector<vector<int>>")) {
-            return convert2DIntVector((List<?>) value);
-        }
-        if (type.contains("vector<int>")) {
-            return convert1DIntVector((List<?>) value);
-        }
-        if (type.contains("vector<string>")) {
-            return convertStringVector((List<?>) value);
-        }
-        if (type.equals("int") || type.equals("long") || type.equals("double") || type.equals("float")) {
-            return String.valueOf(value);
-        }
-        if (type.equals("bool")) {
+        // Boolean (C++ uses true/false)
+        if (value instanceof Boolean) {
             return String.valueOf(value).toLowerCase();
         }
-        if (type.equals("char")) {
-            return "'" + value + "'";
+
+        // Numbers
+        if (value instanceof Number) {
+            return String.valueOf(value);
         }
-        if (type.equals("string")) {
-            return "\"" + escapeString(String.valueOf(value)) + "\"";
+
+        // String
+        if (value instanceof String) {
+            return "\"" + escapeString((String) value) + "\"";
         }
+
+        // List/Array
+        if (value instanceof List) {
+            List<?> list = (List<?>) value;
+
+            if (list.isEmpty()) {
+                return "{}";
+            }
+
+            // Check depth
+            int depth = getListDepth(list);
+
+            if (depth == 1) {
+                // 1D vector: {1, 2, 3}
+                return "{" + convertListToString(list) + "}";
+            } else {
+                // Nested vectors: {{1,2}, {3,4}}
+                return "{" + list.stream()
+                        .map(this::convertToCppLiteral)
+                        .collect(Collectors.joining(", ")) + "}";
+            }
+        }
+
         return String.valueOf(value);
     }
 
-    private String convert2DIntVector(List<?> array) {
-        if (array == null || array.isEmpty()) return "vector<vector<int>>()";
-        StringBuilder sb = new StringBuilder("{");
-        for (int i = 0; i < array.size(); i++) {
-            List<?> row = (List<?>) array.get(i);
-            sb.append("{");
-            for (int j = 0; j < row.size(); j++) {
-                sb.append(row.get(j));
-                if (j < row.size() - 1) sb.append(",");
-            }
-            sb.append("}");
-            if (i < array.size() - 1) sb.append(",");
+    private int getListDepth(List<?> list) {
+        if (list.isEmpty()) return 1;
+        Object first = list.get(0);
+        if (first instanceof List) {
+            return 1 + getListDepth((List<?>) first);
         }
-        sb.append("}");
-        return sb.toString();
+        return 1;
     }
 
-    private String convert1DIntVector(List<?> array) {
-        if (array == null || array.isEmpty()) return "vector<int>()";
-        StringBuilder sb = new StringBuilder("{");
-        for (int i = 0; i < array.size(); i++) {
-            sb.append(array.get(i));
-            if (i < array.size() - 1) sb.append(",");
-        }
-        sb.append("}");
-        return sb.toString();
-    }
-
-    private String convertStringVector(List<?> array) {
-        if (array == null || array.isEmpty()) return "vector<string>()";
-        StringBuilder sb = new StringBuilder("{");
-        for (int i = 0; i < array.size(); i++) {
-            sb.append("\"").append(escapeString(String.valueOf(array.get(i)))).append("\"");
-            if (i < array.size() - 1) sb.append(",");
-        }
-        sb.append("}");
-        return sb.toString();
+    private String convertListToString(List<?> list) {
+        return list.stream()
+                .map(item -> {
+                    if (item == null) return "nullptr";
+                    if (item instanceof String) {
+                        return "\"" + escapeString((String) item) + "\"";
+                    }
+                    if (item instanceof Boolean) {
+                        return String.valueOf(item).toLowerCase();
+                    }
+                    return String.valueOf(item);
+                })
+                .collect(Collectors.joining(", "));
     }
 
     private String escapeString(String str) {
+        if (str == null) return "";
         return str.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
+                .replace("\r", "\\r")
                 .replace("\t", "\\t");
     }
 
-    public static class MethodSignature {
-        private final String returnType;
-        private final String methodName;
-        private final List<Parameter> parameters;
+    private String extractBetween(String text, String start, String end) {
+        int startIdx = text.indexOf(start);
+        int endIdx = text.indexOf(end);
 
-        public MethodSignature(String returnType, String methodName, List<Parameter> parameters) {
-            this.returnType = returnType;
-            this.methodName = methodName;
-            this.parameters = parameters;
+        if (startIdx == -1 || endIdx == -1) {
+            throw new RuntimeException("Invalid template: missing markers " + start + " or " + end);
         }
 
-        public String getReturnType() { return returnType; }
-        public String getMethodName() { return methodName; }
-        public List<Parameter> getParameters() { return parameters; }
-    }
-
-    public static class Parameter {
-        private final String type;
-        private final String name;
-
-        public Parameter(String type, String name) {
-            this.type = type;
-            this.name = name;
-        }
-
-        public String getType() { return type; }
-        public String getName() { return name; }
+        return text.substring(startIdx + start.length(), endIdx);
     }
 }

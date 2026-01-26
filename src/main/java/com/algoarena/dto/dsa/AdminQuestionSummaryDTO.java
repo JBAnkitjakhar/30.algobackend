@@ -10,16 +10,15 @@ public class AdminQuestionSummaryDTO {
     private String id;
     private String title;
     private QuestionLevel level;
-    private String categoryId; // ONLY ID
+    private String categoryId;
     private Integer displayOrder;
     private int imageCount;
     
-    // NEW: Code template availability (languages available)
+    // Code template availability (languages available)
     private List<String> userStarterCodeLanguages;
-    private List<String> generalTemplateLanguages;
-    private List<String> correctSolutionLanguages;
+    private List<String> submitTemplateLanguages;    
+    private List<String> runTemplateLanguages;        
     
-    // NEW: Testcase count
     private int testcaseCount;
     
     private String createdByName;
@@ -52,14 +51,14 @@ public class AdminQuestionSummaryDTO {
         this.userStarterCodeLanguages = userStarterCodeLanguages; 
     }
     
-    public List<String> getGeneralTemplateLanguages() { return generalTemplateLanguages; }
-    public void setGeneralTemplateLanguages(List<String> generalTemplateLanguages) { 
-        this.generalTemplateLanguages = generalTemplateLanguages; 
+    public List<String> getSubmitTemplateLanguages() { return submitTemplateLanguages; }  // ✅ RENAMED
+    public void setSubmitTemplateLanguages(List<String> submitTemplateLanguages) {  // ✅ RENAMED
+        this.submitTemplateLanguages = submitTemplateLanguages; 
     }
     
-    public List<String> getCorrectSolutionLanguages() { return correctSolutionLanguages; }
-    public void setCorrectSolutionLanguages(List<String> correctSolutionLanguages) { 
-        this.correctSolutionLanguages = correctSolutionLanguages; 
+    public List<String> getRunTemplateLanguages() { return runTemplateLanguages; }  // ✅ RENAMED
+    public void setRunTemplateLanguages(List<String> runTemplateLanguages) {  // ✅ RENAMED
+        this.runTemplateLanguages = runTemplateLanguages; 
     }
     
     public int getTestcaseCount() { return testcaseCount; }

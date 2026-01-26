@@ -2,254 +2,160 @@
 package com.algoarena.service.compiler.runmode;
 
 import com.algoarena.dto.compiler.runmode.RunTestCaseInput;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class JavaScriptTemplateGenerator {
 
-    public String generateRunTemplate(
-            String correctSolution,
+    private static final Logger logger = LoggerFactory.getLogger(JavaScriptTemplateGenerator.class);
+
+    /**
+     * Generate executable JavaScript code from admin's template
+     */
+    public String generateFromTemplate(
+            String adminTemplate,
             String userCode,
-            List<RunTestCaseInput> testCases,
-            String methodName) {
-        
-        MethodSignature signature = extractMethodSignature(correctSolution, methodName);
-        
-        StringBuilder template = new StringBuilder();
-        
-        // Correct solution
-        template.append("// ===== CORRECT SOLUTION =====\n");
-        String renamedCorrectSolution = correctSolution
-            .replace("var Solution = function()", "var CorrectSolution = function()")
-            .replace("Solution.prototype.", "CorrectSolution.prototype.");
-        template.append(renamedCorrectSolution);
-        template.append("\n\n");
-        
-        // User solution
-        template.append("// ===== USER SOLUTION =====\n");
-        template.append(userCode);
-        template.append("\n\n");
-        
-        // Main execution
-        template.append(generateMainExecution(signature, testCases));
-        
-        return template.toString();
-    }
+            List<RunTestCaseInput> testCases) {
 
-    private MethodSignature extractMethodSignature(String correctSolution, String methodName) {
-        String patternString = "Solution\\.prototype\\." + 
-                               Pattern.quote(methodName) + 
-                               "\\s*=\\s*function\\s*\\(([^)]*)\\)";
-        
-        Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(correctSolution);
-        
-        if (!matcher.find()) {
-            throw new IllegalArgumentException(
-                "Could not find method '" + methodName + "' in correct solution");
-        }
-        
-        String paramsString = matcher.group(1).trim();
-        
-        List<Parameter> parameters = new ArrayList<>();
-        
-        if (!paramsString.isEmpty()) {
-            String[] paramNames = paramsString.split(",");
-            for (String name : paramNames) {
-                parameters.add(new Parameter("any", name.trim()));
-            }
-        }
-        
-        return new MethodSignature("any", methodName, parameters);
-    }
+        logger.info("Generating JavaScript code from template...");
+        logger.info("Number of test cases: {}", testCases.size());
 
-    // ✅ UPDATED: Each test case creates fresh instances
-    private String generateMainExecution(MethodSignature signature, List<RunTestCaseInput> testCases) {
-        StringBuilder main = new StringBuilder();
-        
-        // Generate each test case
+        // 1. Extract test case template block
+        String testCaseTemplate = extractBetween(
+                adminTemplate,
+                "// {{TEST_CASE_TEMPLATE_START}}",
+                "// {{TEST_CASE_TEMPLATE_END}}"
+        );
+
+        logger.info("Extracted test case template (length: {} chars)", testCaseTemplate.length());
+
+        // 2. Fill test cases
+        StringBuilder allTestCases = new StringBuilder();
+
         for (int i = 0; i < testCases.size(); i++) {
-            main.append(generateTestCase(testCases.get(i), i + 1, signature));
+            logger.info("Processing test case {}: input = {}", i + 1, testCases.get(i).getInput());
+
+            String filledBlock = testCaseTemplate;
+
+            // Replace {{INPUT_X}} placeholders
+            List<Object> inputs = testCases.get(i).getInput();
+
+            for (int j = 0; j < inputs.size(); j++) {
+                String placeholder = "{{INPUT_" + j + "}}";
+                String jsLiteral = convertToJsLiteral(inputs.get(j));
+
+                logger.info("Replacing {} with: {}", placeholder, jsLiteral);
+
+                filledBlock = filledBlock.replace(placeholder, jsLiteral);
+            }
+
+            allTestCases.append(filledBlock).append("\n");
         }
-        
-        return main.toString();
+
+        // 3. Build final code
+        String finalCode = adminTemplate
+                .replace(
+                        "// {{TEST_CASE_TEMPLATE_START}}" + testCaseTemplate + "// {{TEST_CASE_TEMPLATE_END}}",
+                        allTestCases.toString()
+                )
+                .replace("// {{USER_CODE_PLACEHOLDER}}", userCode);
+
+        logger.info("Final JavaScript code generated (length: {} chars)", finalCode.length());
+
+        return finalCode;
     }
 
-    // ✅ UPDATED: Fresh instances + deep copy per test case
-    private String generateTestCase(RunTestCaseInput testCase, int testNumber, MethodSignature signature) {
-        StringBuilder code = new StringBuilder();
-        
-        code.append("// ===== TEST CASE ").append(testNumber).append(" =====\n");
-        code.append("{\n");
-        
-        Map<String, Object> inputs = testCase.getInput();
-        
-        // Generate base variables
-        for (Parameter param : signature.getParameters()) {
-            Object value = inputs.get(param.getName());
-            String jsCode = convertToJsCode(value);
-            code.append("    const ").append(param.getName()).append(testNumber)
-                .append(" = ").append(jsCode).append(";\n");
+    /**
+     * Convert JSON value to JavaScript literal
+     */
+    private String convertToJsLiteral(Object value) {
+        if (value == null) {
+            return "null";
         }
-        
-        code.append("\n");
-        code.append("    try {\n");
-        
-        // ✅ CREATE FRESH INSTANCES
-        code.append("        const correctSolution").append(testNumber).append(" = new CorrectSolution();\n");
-        code.append("        const userSolution").append(testNumber).append(" = new Solution();\n\n");
-        
-        // Deep copy for correct solution
-        code.append("        // Deep copy for correct solution\n");
-        for (Parameter param : signature.getParameters()) {
-            code.append("        const ").append(param.getName()).append(testNumber)
-                .append("Correct = JSON.parse(JSON.stringify(")
-                .append(param.getName()).append(testNumber).append("));\n");
-        }
-        
-        code.append("\n");
-        
-        // Call CORRECT solution
-        code.append("        const expected = correctSolution").append(testNumber)
-            .append(".").append(signature.getMethodName()).append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            code.append(signature.getParameters().get(i).getName()).append(testNumber).append("Correct");
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(");\n\n");
-        
-        // Deep copy for user solution
-        code.append("        // Deep copy for user solution\n");
-        for (Parameter param : signature.getParameters()) {
-            code.append("        const ").append(param.getName()).append(testNumber)
-                .append("User = JSON.parse(JSON.stringify(")
-                .append(param.getName()).append(testNumber).append("));\n");
-        }
-        
-        code.append("\n");
-        
-        // Call USER solution
-        code.append("        const actual = userSolution").append(testNumber)
-            .append(".").append(signature.getMethodName()).append("(");
-        for (int i = 0; i < signature.getParameters().size(); i++) {
-            code.append(signature.getParameters().get(i).getName()).append(testNumber).append("User");
-            if (i < signature.getParameters().size() - 1) {
-                code.append(", ");
-            }
-        }
-        code.append(");\n\n");
-        
-        // Print results
-        code.append("        console.log(\"TEST_CASE_START\");\n");
-        code.append("        console.log(`EXPECTED_OUTPUT : ${expected !== null && expected !== undefined ? expected : 'null'}`);\n");
-        code.append("        console.log(`USER_OUTPUT : ${actual !== null && actual !== undefined ? actual : 'null'}`);\n");
-        code.append("        console.log(\"TEST_CASE_END\");\n");
-        
-        code.append("    } catch (e) {\n");
-        code.append("        console.log(\"TEST_CASE_START\");\n");
-        code.append("        console.log(`ERROR : ${e.message}`);\n");
-        code.append("        console.log(\"TEST_CASE_END\");\n");
-        code.append("    }\n");
-        code.append("}\n\n");
-        
-        return code.toString();
-    }
 
-    private String convertToJsCode(Object value) {
-        if (value == null) return "null";
-        
-        if (value instanceof List) {
-            List<?> list = (List<?>) value;
-            if (list.isEmpty()) return "[]";
-            
-            if (list.get(0) instanceof List) {
-                return convert2DArray(list);
-            } else {
-                return convert1DArray(list);
-            }
+        // Boolean
+        if (value instanceof Boolean) {
+            return String.valueOf(value);
         }
-        
+
+        // Numbers
+        if (value instanceof Number) {
+            return String.valueOf(value);
+        }
+
+        // String
         if (value instanceof String) {
             return "\"" + escapeString((String) value) + "\"";
         }
-        
-        if (value instanceof Boolean) {
-            return value.toString();
+
+        // List/Array
+        if (value instanceof List) {
+            List<?> list = (List<?>) value;
+
+            if (list.isEmpty()) {
+                return "[]";
+            }
+
+            // Check depth
+            int depth = getListDepth(list);
+
+            if (depth == 1) {
+                // 1D array: [1, 2, 3]
+                return "[" + convertListToString(list) + "]";
+            } else {
+                // Nested arrays: [[1,2], [3,4]]
+                return "[" + list.stream()
+                        .map(this::convertToJsLiteral)
+                        .collect(Collectors.joining(", ")) + "]";
+            }
         }
-        
+
         return String.valueOf(value);
     }
 
-    private String convert2DArray(List<?> array) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < array.size(); i++) {
-            List<?> row = (List<?>) array.get(i);
-            sb.append("[");
-            for (int j = 0; j < row.size(); j++) {
-                sb.append(row.get(j));
-                if (j < row.size() - 1) sb.append(",");
-            }
-            sb.append("]");
-            if (i < array.size() - 1) sb.append(",");
+    private int getListDepth(List<?> list) {
+        if (list.isEmpty()) return 1;
+        Object first = list.get(0);
+        if (first instanceof List) {
+            return 1 + getListDepth((List<?>) first);
         }
-        sb.append("]");
-        return sb.toString();
+        return 1;
     }
 
-    private String convert1DArray(List<?> array) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < array.size(); i++) {
-            Object item = array.get(i);
-            if (item instanceof String) {
-                sb.append("\"").append(escapeString((String) item)).append("\"");
-            } else {
-                sb.append(item);
-            }
-            if (i < array.size() - 1) sb.append(",");
-        }
-        sb.append("]");
-        return sb.toString();
+    private String convertListToString(List<?> list) {
+        return list.stream()
+                .map(item -> {
+                    if (item == null) return "null";
+                    if (item instanceof String) {
+                        return "\"" + escapeString((String) item) + "\"";
+                    }
+                    return String.valueOf(item);
+                })
+                .collect(Collectors.joining(", "));
     }
 
     private String escapeString(String str) {
+        if (str == null) return "";
         return str.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
+                .replace("\r", "\\r")
                 .replace("\t", "\\t");
     }
 
-    public static class MethodSignature {
-        private final String returnType;
-        private final String methodName;
-        private final List<Parameter> parameters;
+    private String extractBetween(String text, String start, String end) {
+        int startIdx = text.indexOf(start);
+        int endIdx = text.indexOf(end);
 
-        public MethodSignature(String returnType, String methodName, List<Parameter> parameters) {
-            this.returnType = returnType;
-            this.methodName = methodName;
-            this.parameters = parameters;
+        if (startIdx == -1 || endIdx == -1) {
+            throw new RuntimeException("Invalid template: missing markers " + start + " or " + end);
         }
 
-        public String getReturnType() { return returnType; }
-        public String getMethodName() { return methodName; }
-        public List<Parameter> getParameters() { return parameters; }
-    }
-
-    public static class Parameter {
-        private final String type;
-        private final String name;
-
-        public Parameter(String type, String name) {
-            this.type = type;
-            this.name = name;
-        }
-
-        public String getType() { return type; }
-        public String getName() { return name; }
+        return text.substring(startIdx + start.length(), endIdx);
     }
 }

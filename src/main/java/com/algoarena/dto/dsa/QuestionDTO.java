@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,10 +37,9 @@ public class QuestionDTO {
 
     // Code templates
     private Map<String, String> userStarterCode;
-    private Map<String, String> generalTemplate;
-    private Map<String, String> correctSolution;
+    private Map<String, String> submitTemplate;       
+    private Map<String, String> runTemplate;          
 
-    // ✅ NEW: Method name for execution
     private String methodName;
 
     // Testcases
@@ -54,7 +54,7 @@ public class QuestionDTO {
     // Inner DTO for Testcase
     public static class TestcaseDTO {
         private Integer id;
-        private Map<String, Object> input;
+        private LinkedHashMap<String, Object> input;
         private Object expectedOutput;
 
         public TestcaseDTO() {
@@ -74,11 +74,11 @@ public class QuestionDTO {
             this.id = id;
         }
 
-        public Map<String, Object> getInput() {
+        public LinkedHashMap<String, Object> getInput() {
             return input;
         }
 
-        public void setInput(Map<String, Object> input) {
+        public void setInput(LinkedHashMap<String, Object> input) {
             this.input = input;
         }
 
@@ -103,9 +103,9 @@ public class QuestionDTO {
         this.imageUrls = question.getImageUrls();
 
         this.userStarterCode = question.getUserStarterCode();
-        this.generalTemplate = question.getGeneralTemplate();
-        this.correctSolution = question.getCorrectSolution();
-        this.methodName = question.getMethodName(); // ✅ NEW
+        this.submitTemplate = question.getSubmitTemplate();      // ✅ RENAMED
+        this.runTemplate = question.getRunTemplate();            // ✅ RENAMED
+        this.methodName = question.getMethodName();
 
         if (question.getTestcases() != null) {
             this.testcases = question.getTestcases().stream()
@@ -175,23 +175,22 @@ public class QuestionDTO {
         this.userStarterCode = userStarterCode;
     }
 
-    public Map<String, String> getGeneralTemplate() {
-        return generalTemplate;
+    public Map<String, String> getSubmitTemplate() {  // ✅ RENAMED
+        return submitTemplate;
     }
 
-    public void setGeneralTemplate(Map<String, String> generalTemplate) {
-        this.generalTemplate = generalTemplate;
+    public void setSubmitTemplate(Map<String, String> submitTemplate) {  // ✅ RENAMED
+        this.submitTemplate = submitTemplate;
     }
 
-    public Map<String, String> getCorrectSolution() {
-        return correctSolution;
+    public Map<String, String> getRunTemplate() {  // ✅ RENAMED
+        return runTemplate;
     }
 
-    public void setCorrectSolution(Map<String, String> correctSolution) {
-        this.correctSolution = correctSolution;
+    public void setRunTemplate(Map<String, String> runTemplate) {  // ✅ RENAMED
+        this.runTemplate = runTemplate;
     }
 
-    // ✅ NEW: Getter and Setter for methodName
     public String getMethodName() {
         return methodName;
     }

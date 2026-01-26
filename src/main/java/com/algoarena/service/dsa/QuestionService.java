@@ -77,8 +77,8 @@ public class QuestionService {
 
         // Set code templates
         question.setUserStarterCode(questionDTO.getUserStarterCode());
-        question.setGeneralTemplate(questionDTO.getGeneralTemplate());
-        question.setCorrectSolution(questionDTO.getCorrectSolution());
+        question.setSubmitTemplate(questionDTO.getSubmitTemplate());
+        question.setRunTemplate(questionDTO.getRunTemplate());
         question.setMethodName(questionDTO.getMethodName()); // ✅ NEW
 
         // Set testcases
@@ -153,8 +153,8 @@ public class QuestionService {
 
         // Update code templates
         question.setUserStarterCode(questionDTO.getUserStarterCode());
-        question.setGeneralTemplate(questionDTO.getGeneralTemplate());
-        question.setCorrectSolution(questionDTO.getCorrectSolution());
+        question.setSubmitTemplate(questionDTO.getSubmitTemplate());
+        question.setRunTemplate(questionDTO.getRunTemplate());
         question.setMethodName(questionDTO.getMethodName()); // ✅ NEW
 
         // Update testcases
@@ -299,18 +299,18 @@ public class QuestionService {
                 dto.setUserStarterCodeLanguages(new java.util.ArrayList<>());
             }
 
-            // ✅ NEW: Set generalTemplate languages
-            if (question.getGeneralTemplate() != null) {
-                dto.setGeneralTemplateLanguages(new java.util.ArrayList<>(question.getGeneralTemplate().keySet()));
+            // ✅ NEW: Set submitTemplate languages
+            if (question.getSubmitTemplate() != null) {
+                dto.setSubmitTemplateLanguages(new java.util.ArrayList<>(question.getSubmitTemplate().keySet()));
             } else {
-                dto.setGeneralTemplateLanguages(new java.util.ArrayList<>());
+                dto.setSubmitTemplateLanguages(new java.util.ArrayList<>());
             }
 
-            // ✅ NEW: Set correctSolution languages
-            if (question.getCorrectSolution() != null) {
-                dto.setCorrectSolutionLanguages(new java.util.ArrayList<>(question.getCorrectSolution().keySet()));
+            // ✅ RENAMED: Set runTemplate languages
+            if (question.getRunTemplate() != null) {
+                dto.setRunTemplateLanguages(new java.util.ArrayList<>(question.getRunTemplate().keySet()));
             } else {
-                dto.setCorrectSolutionLanguages(new java.util.ArrayList<>());
+                dto.setRunTemplateLanguages(new java.util.ArrayList<>());
             }
 
             // ✅ NEW: Set testcase count
