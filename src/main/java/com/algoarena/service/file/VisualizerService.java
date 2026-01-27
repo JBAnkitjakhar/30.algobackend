@@ -10,6 +10,8 @@ import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -215,6 +217,59 @@ public class VisualizerService {
     }
 
     /**
+     * Get obfuscated HTML content for regular users
+     * Wraps content in Base64 encoding with runtime decoder
+     */
+    public String getObfuscatedVisualizerContent(String fileId) throws IOException {
+        // Get the raw HTML content from GridFS
+        String rawHtml = getRawVisualizerContent(fileId);
+
+        // Base64 encode the HTML
+        String encodedHtml = Base64.getEncoder().encodeToString(rawHtml.getBytes(StandardCharsets.UTF_8));
+
+        // Return wrapper HTML that decodes at runtime
+        return createObfuscationWrapper(encodedHtml);
+    }
+
+    /**
+     * Create minimal obfuscation wrapper
+     * Uses document.write with atob() for runtime decoding
+     */
+    private String createObfuscationWrapper(String base64Content) {
+        return String.format(
+                "<!DOCTYPE html>" +
+                        "<html lang=\"en\">" +
+                        "<head>" +
+                        "<meta charset=\"UTF-8\">" +
+                        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+                        "<style>" +
+                        "body{margin:0;padding:0;overflow:hidden;}" +
+                        "#loader{display:flex;justify-content:center;align-items:center;height:100vh;font-family:Arial,sans-serif;color:#666;}"
+                        +
+                        "</style>" +
+                        "</head>" +
+                        "<body>" +
+                        "<div id=\"loader\">Loading visualizer...</div>" +
+                        "<script>" +
+                        "(function(){" +
+                        "try{" +
+                        "var e='%s';" +
+                        "var d=atob(e);" +
+                        "document.open();" +
+                        "document.write(d);" +
+                        "document.close();" +
+                        "}catch(err){" +
+                        "document.body.innerHTML='<div style=\"text-align:center;padding:50px;color:red;\">Failed to load visualizer</div>';"
+                        +
+                        "}" +
+                        "})();" +
+                        "</script>" +
+                        "</body>" +
+                        "</html>",
+                base64Content);
+    }
+
+    /**
      * Add runtime security context to HTML before serving
      */
     private String addRuntimeSecurityContext(String htmlContent) {
@@ -323,7 +378,8 @@ public class VisualizerService {
                 return;
             }
 
-            // System.out.println("Deleting " + fileCount + " visualizer files for solution: " + solutionId);
+            // System.out.println("Deleting " + fileCount + " visualizer files for solution:
+            // " + solutionId);
 
             // Delete all files in one operation
             gridFsTemplate.delete(query);
