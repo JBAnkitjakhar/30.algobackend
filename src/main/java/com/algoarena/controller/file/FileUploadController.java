@@ -3,7 +3,7 @@ package com.algoarena.controller.file;
 
 import com.algoarena.service.file.CloudinaryService;
 import com.algoarena.service.file.VisualizerService;
-import com.algoarena.service.dsa.SolutionService;
+import com.algoarena.service.dsa.SolutionService;  
 import org.springframework.http.HttpStatus;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -16,8 +16,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import org.springframework.security.core.Authentication;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,24 +26,15 @@ public class FileUploadController {
 
     private final CloudinaryService cloudinaryService;
     private final VisualizerService visualizerService;
-    private final SolutionService solutionService;
+    private final SolutionService solutionService;  
 
     // UPDATE CONSTRUCTOR TO INCLUDE SolutionService
-    public FileUploadController(CloudinaryService cloudinaryService,
-            VisualizerService visualizerService,
-            SolutionService solutionService) {
+    public FileUploadController(CloudinaryService cloudinaryService, 
+                               VisualizerService visualizerService,
+                               SolutionService solutionService) {
         this.cloudinaryService = cloudinaryService;
         this.visualizerService = visualizerService;
-        this.solutionService = solutionService;
-    }
-
-    private boolean isAdmin(Authentication authentication) {
-        if (authentication == null) {
-            return false;
-        }
-        return authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") ||
-                        a.getAuthority().equals("ROLE_SUPERADMIN"));
+        this.solutionService = solutionService;  
     }
 
     // ==================== IMAGE UPLOAD ENDPOINTS ====================
@@ -260,47 +249,42 @@ public class FileUploadController {
     }
 
     /**
-     * Serve HTML visualizer with role-based content protection
-     * - Admins/SuperAdmins: Get raw HTML (for debugging/inspection)
-     * - Regular Users: Get Base64 obfuscated HTML (protection)
+     * Serve raw HTML content without any processing
+     * This bypasses all sanitization issues for trusted educational content
      */
     @GetMapping("/visualizers/{fileId}")
     public ResponseEntity<String> getVisualizerFile(
             @PathVariable String fileId,
-            Authentication authentication,
             HttpServletRequest request) {
 
         try {
+            // System.out.println("Accessing visualizer: " + fileId);
+            // System.out.println("User authenticated: " + (request.getUserPrincipal() != null));
+
             if (fileId == null || fileId.trim().isEmpty()) {
                 return ResponseEntity.badRequest()
                         .contentType(MediaType.TEXT_PLAIN)
                         .body("Invalid file ID");
             }
 
-            // ✅ USE HELPER METHOD - Consistent with other controllers
-            boolean isAdmin = isAdmin(authentication);
+            // GET RAW CONTENT WITHOUT ANY PROCESSING
+            String htmlContent = visualizerService.getRawVisualizerContent(fileId);
 
-            String htmlContent;
-
-            if (isAdmin) {
-                // ✅ ADMIN: Serve raw HTML for debugging/inspection
-                htmlContent = visualizerService.getRawVisualizerContent(fileId);
-                System.out.println("Serving RAW HTML to admin user: " + fileId);
-            } else {
-                // ✅ REGULAR USER: Serve obfuscated HTML for protection
-                htmlContent = visualizerService.getObfuscatedVisualizerContent(fileId);
-                System.out.println("Serving OBFUSCATED HTML to regular user: " + fileId);
-            }
+            // System.out.println("Raw HTML size: " + htmlContent.length() + " chars");
+            // System.out.println("Contains <style>: " + htmlContent.toLowerCase().contains("<style"));
+            // System.out.println("Contains <script>: " + htmlContent.toLowerCase().contains("<script"));
 
             return ResponseEntity.ok()
                     .contentType(MediaType.TEXT_HTML)
+                    // MINIMAL SECURITY HEADERS - DON'T BLOCK INLINE CONTENT
                     .header("X-Frame-Options", "SAMEORIGIN")
                     .header("X-Content-Type-Options", "nosniff")
-                    .header("Cache-Control", isAdmin ? "no-cache" : "private, max-age=3600")
+                    .header("Cache-Control", "public, max-age=3600")
+                    // RELAXED CSP FOR EDUCATIONAL CONTENT
                     .header("Content-Security-Policy",
                             "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; " +
                                     "img-src 'self' data: https: blob:; " +
-                                    "connect-src 'self'; " +
+                                    "connect-src 'self'; " + // Allow some connections for educational demos
                                     "form-action 'self'; " +
                                     "frame-ancestors 'self'")
                     .body(htmlContent);
@@ -376,37 +360,35 @@ public class FileUploadController {
     }
 
     // /**
-    // * ENHANCED: List all visualizer files for a solution
-    // */
+    //  * ENHANCED: List all visualizer files for a solution
+    //  */
     // @GetMapping("/solutions/{solutionId}/visualizers")
-    // public ResponseEntity<Map<String, Object>>
-    // getVisualizersBySolution(@PathVariable String solutionId) {
-    // Map<String, Object> response = new HashMap<>();
+    // public ResponseEntity<Map<String, Object>> getVisualizersBySolution(@PathVariable String solutionId) {
+    //     Map<String, Object> response = new HashMap<>();
 
-    // try {
-    // if (solutionId == null || solutionId.trim().isEmpty()) {
-    // response.put("success", false);
-    // response.put("error", "Solution ID is required");
-    // return ResponseEntity.badRequest().body(response);
-    // }
+    //     try {
+    //         if (solutionId == null || solutionId.trim().isEmpty()) {
+    //             response.put("success", false);
+    //             response.put("error", "Solution ID is required");
+    //             return ResponseEntity.badRequest().body(response);
+    //         }
 
-    // // ENHANCED: Use the new method that returns proper structure
-    // Map<String, Object> result =
-    // visualizerService.listVisualizersBySolution(solutionId);
+    //         // ENHANCED: Use the new method that returns proper structure
+    //         Map<String, Object> result = visualizerService.listVisualizersBySolution(solutionId);
 
-    // response.put("success", true);
-    // response.put("data", (List<?>) result.get("files"));
-    // response.put("count", result.get("count"));
-    // response.put("solutionId", solutionId);
+    //         response.put("success", true);
+    //         response.put("data", (List<?>) result.get("files"));
+    //         response.put("count", result.get("count"));
+    //         response.put("solutionId", solutionId);
 
-    // return ResponseEntity.ok(response);
+    //         return ResponseEntity.ok(response);
 
-    // } catch (Exception e) {
-    // response.put("success", false);
-    // response.put("error", "Failed to get visualizers");
-    // response.put("message", e.getMessage());
-    // return ResponseEntity.status(500).body(response);
-    // }
+    //     } catch (Exception e) {
+    //         response.put("success", false);
+    //         response.put("error", "Failed to get visualizers");
+    //         response.put("message", e.getMessage());
+    //         return ResponseEntity.status(500).body(response);
+    //     }
     // }
 
     /**
