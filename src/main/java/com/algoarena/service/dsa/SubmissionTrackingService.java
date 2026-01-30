@@ -25,15 +25,15 @@ public class SubmissionTrackingService {
     private SubmissionTrackingRepository submissionTrackingRepository;
 
     /**
-     * Thread-safe submission tracking using MongoDB atomic operations
-     * Handles concurrent submissions from multiple tabs/devices
-     * ⭐ Uses UTC date for consistency across all servers
+     * ✅ Thread-safe submission tracking using MongoDB atomic operations
+     * Stores submissions in OLD→NEW order (oldest at index 0, newest at end)
+     * Uses UTC date for consistency across all servers
      */
     public void recordSubmission(String userId) {
-        // ⭐ CHANGED: Use UTC date instead of server's local timezone
+        // ⭐ Use UTC date to ensure consistency across timezones
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
 
-        // Try to increment today's count (if today already exists)
+        // ⭐ Try to increment today's count (if today already exists in the array)
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("submissionHistory").elemMatch(Criteria.where("date").is(today)));
         
@@ -44,12 +44,12 @@ public class SubmissionTrackingService {
                 incrementUpdate,
                 SubmissionTracking.class);
 
-        // If today doesn't exist yet, add new entry
+        // ⭐ If today doesn't exist yet, add new entry at the END (not beginning!)
         if (result == null) {
             Query userQuery = new Query(Criteria.where("userId").is(userId));
             Update pushUpdate = new Update()
-                    .push("submissionHistory", 
-                            new SubmissionTracking.DailySubmission(today, 1));
+                    .push("submissionHistory")  // ✅ Appends to END of array
+                    .each(new SubmissionTracking.DailySubmission(today, 1));
             
             mongoTemplate.upsert(userQuery, pushUpdate, SubmissionTracking.class);
         }
@@ -63,7 +63,6 @@ public class SubmissionTrackingService {
                 .orElse(null);
         
         if (tracking == null) {
-            // Return empty history if user has no submissions yet
             SubmissionTracking emptyTracking = new SubmissionTracking();
             emptyTracking.setUserId(userId);
             return new SubmissionHistoryDTO(emptyTracking);
