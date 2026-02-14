@@ -38,9 +38,14 @@ public class QuestionDTO {
     // Code templates
     private Map<String, String> userStarterCode;
     private Map<String, String> submitTemplate;       
-    private Map<String, String> runTemplate;          
+    private Map<String, String> runTemplate;
 
-    private String methodName;
+    // ✅ NEW FIELDS
+    private String topicTag;      // Optional
+    private String companyTag;    // Optional
+    
+    @Size(max = 5, message = "Maximum 5 hints allowed")
+    private List<String> hints;   // Optional, max 5 hints
 
     // Testcases
     private List<TestcaseDTO> testcases;
@@ -103,9 +108,13 @@ public class QuestionDTO {
         this.imageUrls = question.getImageUrls();
 
         this.userStarterCode = question.getUserStarterCode();
-        this.submitTemplate = question.getSubmitTemplate();      // ✅ RENAMED
-        this.runTemplate = question.getRunTemplate();            // ✅ RENAMED
-        this.methodName = question.getMethodName();
+        this.submitTemplate = question.getSubmitTemplate();
+        this.runTemplate = question.getRunTemplate();
+
+        // ✅ NEW FIELDS
+        this.topicTag = question.getTopicTag();
+        this.companyTag = question.getCompanyTag();
+        this.hints = question.getHints();
 
         if (question.getTestcases() != null) {
             this.testcases = question.getTestcases().stream()
@@ -175,28 +184,45 @@ public class QuestionDTO {
         this.userStarterCode = userStarterCode;
     }
 
-    public Map<String, String> getSubmitTemplate() {  // ✅ RENAMED
+    public Map<String, String> getSubmitTemplate() {
         return submitTemplate;
     }
 
-    public void setSubmitTemplate(Map<String, String> submitTemplate) {  // ✅ RENAMED
+    public void setSubmitTemplate(Map<String, String> submitTemplate) {
         this.submitTemplate = submitTemplate;
     }
 
-    public Map<String, String> getRunTemplate() {  // ✅ RENAMED
+    public Map<String, String> getRunTemplate() {
         return runTemplate;
     }
 
-    public void setRunTemplate(Map<String, String> runTemplate) {  // ✅ RENAMED
+    public void setRunTemplate(Map<String, String> runTemplate) {
         this.runTemplate = runTemplate;
     }
 
-    public String getMethodName() {
-        return methodName;
+    // ✅ NEW GETTERS/SETTERS
+    public String getTopicTag() {
+        return topicTag;
     }
 
-    public void setMethodName(String methodName) {
-        this.methodName = methodName;
+    public void setTopicTag(String topicTag) {
+        this.topicTag = topicTag;
+    }
+
+    public String getCompanyTag() {
+        return companyTag;
+    }
+
+    public void setCompanyTag(String companyTag) {
+        this.companyTag = companyTag;
+    }
+
+    public List<String> getHints() {
+        return hints;
+    }
+
+    public void setHints(List<String> hints) {
+        this.hints = hints;
     }
 
     public List<TestcaseDTO> getTestcases() {

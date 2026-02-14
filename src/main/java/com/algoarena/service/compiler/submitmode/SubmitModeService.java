@@ -33,7 +33,6 @@ public class SubmitModeService {
     @Autowired
     private JavaSubmitTemplateGenerator javaSubmitTemplateGenerator;
 
-    // ✅ ADD NEW TEMPLATE GENERATORS
     @Autowired
     private CppSubmitTemplateGenerator cppSubmitTemplateGenerator;
 
@@ -55,80 +54,29 @@ public class SubmitModeService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SubmitCodeResponse executeSubmitMode(String questionId, SubmitCodeRequest request, User user) {
-        // logger.info("========== SUBMIT MODE EXECUTION START ==========");
-        // logger.info("Question ID: {}", questionId);
-        // logger.info("Language: {}", request.getLanguage());
-        // logger.info("User: {}", user.getUsername());
-
         // 1. Fetch question
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found with id: " + questionId));
 
-        if (question.getMethodName() == null || question.getMethodName().trim().isEmpty()) {
-            throw new RuntimeException("Method name not configured for this question");
-        }
-
         if (question.getTestcases() == null || question.getTestcases().isEmpty()) {
             throw new RuntimeException("No test cases found for this question");
         }
-
-        // logger.info("Method name: {}", question.getMethodName());
-        // logger.info("Total testcases: {}", question.getTestcases().size());
 
         // 2. Generate complete code
         String completeCode = generateCompleteCode(
                 request.getLanguage(),
                 request.getCode(),
                 question.getTestcases(),
-                question.getMethodName(),
                 question);
-
-        // logger.info("========== GENERATED COMPLETE CODE START ==========");
-        // logger.info("\n{}", completeCode);
-        // logger.info("========== GENERATED COMPLETE CODE END ==========");
 
         // 3. Execute via Piston
         ExecutionResponse executionResponse = executeCode(request.getLanguage(), completeCode);
-
-        // logger.info("========== PISTON EXECUTION RESPONSE ==========");
-        // logger.info("Language: {}", executionResponse.getLanguage());
-        // logger.info("Version: {}", executionResponse.getVersion());
-
-        // if (executionResponse.getCompile() != null) {
-        // logger.info("Compile stdout: {}",
-        // executionResponse.getCompile().getStdout());
-        // logger.info("Compile stderr: {}",
-        // executionResponse.getCompile().getStderr());
-        // logger.info("Compile code: {}", executionResponse.getCompile().getCode());
-        // }
-
-        // if (executionResponse.getRun() != null) {
-        // logger.info("Run stdout length: {}",
-        // executionResponse.getRun().getStdout() != null ?
-        // executionResponse.getRun().getStdout().length() : 0);
-        // logger.info("Run stdout: \n{}", executionResponse.getRun().getStdout());
-        // logger.info("Run stderr: {}", executionResponse.getRun().getStderr());
-        // logger.info("Run code: {}", executionResponse.getRun().getCode());
-        // logger.info("Run wall_time: {}", executionResponse.getRun().getWallTime());
-        // logger.info("Run memory: {}", executionResponse.getRun().getMemory());
-        // }
-        // logger.info("========== PISTON EXECUTION RESPONSE END ==========");
 
         // 4. Parse results
         SubmitCodeResponse response = buildSubmitCodeResponse(
                 executionResponse,
                 question.getTestcases().size(),
                 question.getTestcases());
-
-        // logger.info("========== SUBMIT MODE RESULT ==========");
-        // logger.info("Success: {}", response.isSuccess());
-        // logger.info("Verdict: {}", response.getVerdict());
-        // logger.info("Passed: {}/{}", response.getPassedTestCases(),
-        // response.getTotalTestCases());
-        // logger.info("Runtime: {} ms", response.getMetrics() != null ?
-        // response.getMetrics().getRuntime() : 0);
-        // logger.info("Memory: {} MB", response.getMetrics() != null ?
-        // response.getMetrics().getMemory() : 0);
 
         // 5. Create approach
         try {
@@ -140,12 +88,10 @@ public class SubmitModeService {
                     response,
                     executionResponse);
             response.setApproachId(approachId);
-            // logger.info("Approach created: {}", approachId);
         } catch (Exception e) {
             logger.error("Failed to create approach: {}", e.getMessage(), e);
         }
 
-        // logger.info("========== SUBMIT MODE EXECUTION END ==========");
         return response;
     }
 
@@ -153,7 +99,6 @@ public class SubmitModeService {
             String language,
             String userCode,
             List<Question.Testcase> testcases,
-            String methodName,
             Question question) {
 
         // Get submit template from question
@@ -239,18 +184,6 @@ public class SubmitModeService {
         // Parse test results
         List<SubmitTestCaseResult> testResults = submitOutputParser.parseOutput(stdout, totalTestCases);
 
-        // logger.info("========== PARSED TEST RESULTS ==========");
-        // for (SubmitTestCaseResult result : testResults) {
-        // logger.info("TC {}: Status={}, Expected={}, User={}, Time={} ms, Error={}",
-        // result.getId(),
-        // result.getStatus(),
-        // result.getExpectedOutput(),
-        // result.getUserOutput(),
-        // result.getExecutionTime(),
-        // result.getError());
-        // }
-        // logger.info("========== PARSED TEST RESULTS END ==========");
-
         // Calculate metrics
         int passedCount = (int) testResults.stream().filter(r -> "PASS".equals(r.getStatus())).count();
         int failedCount = (int) testResults.stream().filter(r -> "FAIL".equals(r.getStatus())).count();
@@ -280,8 +213,6 @@ public class SubmitModeService {
                 .filter(time -> time != null && time > 0)
                 .max(Long::compareTo)
                 .orElse(0L);
-
-        // logger.info("Max runtime calculated: {} ms", maxRuntime);
 
         metrics.setRuntime(maxRuntime);
 

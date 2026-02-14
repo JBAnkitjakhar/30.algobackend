@@ -79,7 +79,11 @@ public class QuestionService {
         question.setUserStarterCode(questionDTO.getUserStarterCode());
         question.setSubmitTemplate(questionDTO.getSubmitTemplate());
         question.setRunTemplate(questionDTO.getRunTemplate());
-        question.setMethodName(questionDTO.getMethodName()); // ✅ NEW
+
+        // ✅ NEW FIELDS
+        question.setTopicTag(questionDTO.getTopicTag());
+        question.setCompanyTag(questionDTO.getCompanyTag());
+        question.setHints(questionDTO.getHints());
 
         // Set testcases
         if (questionDTO.getTestcases() != null) {
@@ -155,7 +159,11 @@ public class QuestionService {
         question.setUserStarterCode(questionDTO.getUserStarterCode());
         question.setSubmitTemplate(questionDTO.getSubmitTemplate());
         question.setRunTemplate(questionDTO.getRunTemplate());
-        question.setMethodName(questionDTO.getMethodName()); // ✅ NEW
+
+        // ✅ NEW FIELDS
+        question.setTopicTag(questionDTO.getTopicTag());
+        question.setCompanyTag(questionDTO.getCompanyTag());
+        question.setHints(questionDTO.getHints());
 
         // Update testcases
         if (questionDTO.getTestcases() != null) {

@@ -34,9 +34,12 @@ public class Question {
     // Code templates (multi-language)
     private Map<String, String> userStarterCode;
     private Map<String, String> submitTemplate;   
-    private Map<String, String> runTemplate;          
+    private Map<String, String> runTemplate;
 
-    private String methodName;
+    // ✅ NEW FIELDS
+    private String topicTag;      // Optional
+    private String companyTag;    // Optional
+    private List<String> hints;   // Optional, max 5 hints
 
     // Testcases
     private List<Testcase> testcases;
@@ -148,30 +151,49 @@ public class Question {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Map<String, String> getSubmitTemplate() {  // ✅ RENAMED
+    public Map<String, String> getSubmitTemplate() {
         return submitTemplate;
     }
 
-    public void setSubmitTemplate(Map<String, String> submitTemplate) {  // ✅ RENAMED
+    public void setSubmitTemplate(Map<String, String> submitTemplate) {
         this.submitTemplate = submitTemplate;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Map<String, String> getRunTemplate() {  // ✅ RENAMED
+    public Map<String, String> getRunTemplate() {
         return runTemplate;
     }
 
-    public void setRunTemplate(Map<String, String> runTemplate) {  // ✅ RENAMED
+    public void setRunTemplate(Map<String, String> runTemplate) {
         this.runTemplate = runTemplate;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public String getMethodName() {
-        return methodName;
+    // ✅ NEW GETTERS/SETTERS
+    public String getTopicTag() {
+        return topicTag;
     }
 
-    public void setMethodName(String methodName) {
-        this.methodName = methodName;
+    public void setTopicTag(String topicTag) {
+        this.topicTag = topicTag;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public String getCompanyTag() {
+        return companyTag;
+    }
+
+    public void setCompanyTag(String companyTag) {
+        this.companyTag = companyTag;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public List<String> getHints() {
+        return hints;
+    }
+
+    public void setHints(List<String> hints) {
+        this.hints = hints;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -250,7 +272,6 @@ public class Question {
                 ", title='" + title + '\'' +
                 ", categoryId='" + categoryId + '\'' +
                 ", level=" + level +
-                ", methodName='" + methodName + '\'' +
                 ", version=" + version +
                 '}';
     }

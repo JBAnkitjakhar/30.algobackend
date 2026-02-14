@@ -18,6 +18,12 @@ public class QuestionPublicDTO {
     
     // Code templates
     private Map<String, String> userStarterCode;
+    
+    // ✅ NEW FIELDS
+    private String topicTag;
+    private String companyTag;
+    private List<String> hints;
+    
     // Testcases (limited to first 3)
     private List<TestcaseDTO> testcases;
 
@@ -35,7 +41,6 @@ public class QuestionPublicDTO {
             this.expectedOutput = testcase.getExpectedOutput();
         }
 
-        // Getters and Setters
         public Integer getId() { return id; }
         public void setId(Integer id) { this.id = id; }
 
@@ -59,10 +64,15 @@ public class QuestionPublicDTO {
         
         dto.userStarterCode = full.getUserStarterCode();
         
-        // ✅ Only first 3 testcases
+        // ✅ NEW FIELDS
+        dto.topicTag = full.getTopicTag();
+        dto.companyTag = full.getCompanyTag();
+        dto.hints = full.getHints();
+        
+        // Only first 3 testcases
         if (full.getTestcases() != null) {
             dto.testcases = full.getTestcases().stream()
-                    .limit(3)  // ✅ Limit to first 3 testcases
+                    .limit(3)
                     .map(TestcaseDTO::new)
                     .collect(Collectors.toList());
         }
@@ -91,6 +101,15 @@ public class QuestionPublicDTO {
 
     public Map<String, String> getUserStarterCode() { return userStarterCode; }
     public void setUserStarterCode(Map<String, String> userStarterCode) { this.userStarterCode = userStarterCode; }
+
+    public String getTopicTag() { return topicTag; }
+    public void setTopicTag(String topicTag) { this.topicTag = topicTag; }
+
+    public String getCompanyTag() { return companyTag; }
+    public void setCompanyTag(String companyTag) { this.companyTag = companyTag; }
+
+    public List<String> getHints() { return hints; }
+    public void setHints(List<String> hints) { this.hints = hints; }
 
     public List<TestcaseDTO> getTestcases() { return testcases; }
     public void setTestcases(List<TestcaseDTO> testcases) { this.testcases = testcases; }
